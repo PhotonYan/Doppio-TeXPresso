@@ -2,7 +2,9 @@
 
 Incremental **XeLaTeX and pdfLaTeX** preview inside VS Code. See changes as you type, select text in the PDF, and jump between the preview and the source.
 
-![LaTeX source and its compiled PDF open side by side in VS Code](https://raw.githubusercontent.com/PhotonYan/Real_Time_LaTeX/main/assets/preview.png)
+![Real-time VS Code recording showing the same unsaved edit update the XeLaTeX and pdfLaTeX previews](https://raw.githubusercontent.com/PhotonYan/Real_Time_LaTeX/main/assets/live-preview.gif)
+
+*Recorded in VS Code at actual playback speed. Both clips edit page 18 of the same 24-page example without saving.*
 
 - **XeLaTeX** uses TeXpresso with local changes for embedded previews, fonts, and source navigation. It supports editing in included files and compiling `subfiles` chapters.
 - **pdfLaTeX** uses FlashTeX's resident engine. After an edit, it can resume from a checkpoint and reuse unchanged pages.
