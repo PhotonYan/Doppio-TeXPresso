@@ -177,7 +177,7 @@
     const rect = geometry.rects[currentPage], effective = Number(zoom) || rect.width / (rect.bounds[2] - rect.bounds[0]) * 72/96;
     const next = clamp(effective * factor, .25, 4); if (next !== effective) { changeZoom(next, origin, anchor); }
   }
-  function target(target) { navigate(target.page, false); views.get(target.page)?.highlight(target); requestViewport(false); }
+  function target(target) { if (target.page !== currentPage) navigate(target.page, false); views.get(target.page)?.highlight(target); requestViewport(false); }
 
   function createPage(page) {
     const sheet = template.cloneNode(true); sheet.hidden = false; sheet.className = 'page-sheet waiting'; sheet.dataset.page = String(page);
@@ -185,6 +185,25 @@
     for (const node of [sheet, ...sheet.querySelectorAll('[id]')]) { const id = node.id; if (id) { node.dataset.part = id; if (page !== 0) { node.removeAttribute('id'); } if (node !== sheet) { node.classList.add(`page-${id}`); } } }
     const element = id => sheet.querySelector(`[data-part="${id}"]`) || globalElement(id);
     let image = element('image'), bounds = geometry.rects[page]?.bounds || [0,0,595.28,841.89];
+    const textLayer = document.createElement('div'); textLayer.className = 'page-text';
+    sheet.insertBefore(textLayer, element('links'));
+    function renderText() {
+      const fragment = document.createDocumentFragment();
+      const w = bounds[2] - bounds[0], h = bounds[3] - bounds[1];
+      for (const [code, x0, y0, x1, y1] of header.text || []) {
+        const span = document.createElement('span');
+        const character = String.fromCodePoint(code);
+        span.textContent = code >= 0xfb00 && code <= 0xfb06 ? character.normalize('NFKC') : character;
+        span.style.left = `${100 * (x0 - bounds[0]) / w}%`;
+        span.style.top = `${100 * (y0 - bounds[1]) / h}%`;
+        span.style.width = `${100 * (x1 - x0) / w}%`;
+        span.style.height = `${100 * (y1 - y0) / h}%`;
+        span.style.fontSize = `${100 * (y1 - y0) / w}cqw`;
+        fragment.appendChild(span);
+      }
+      textLayer.replaceChildren(fragment);
+    }
+
     image.hidden = true;
     const vector = element('vector'), raster = element('raster'), lensVector = globalElement('lensVector'), lensCanvas = globalElement('lensCanvas');
     let svgPage, pngPage, imageId, header, objectUrl, stale = true, generation = 0, highlightTimer;
@@ -205,11 +224,20 @@
     const width = () => desiredWidth(page,bounds,sheet.getBoundingClientRect().width);
     function highlight(target) {
       if (!header || stale || target.page !== page) { return; }
-      const mark = element('highlight'); mark.style.left = `${100*(target.x-bounds[0])/(bounds[2]-bounds[0])}%`; mark.style.top = `${100*(target.y-bounds[1])/(bounds[3]-bounds[1])}%`;
-      clearTimeout(highlightTimer); mark.hidden = true; void mark.offsetWidth; mark.hidden = false;
-      highlightTimer = setTimeout(() => { mark.hidden = true; }, 1500);
-      requestAnimationFrame(() => { if (sheet.isConnected) { mark.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); programmaticTop = viewport.scrollTop; } });
+      requestAnimationFrame(() => {
+        if (!sheet.isConnected) return;
+        const rect = sheet.getBoundingClientRect(), viewRect = viewport.getBoundingClientRect();
+        const x = rect.left + (target.x-bounds[0])/(bounds[2]-bounds[0])*rect.width;
+        const y = rect.top + (target.y-bounds[1])/(bounds[3]-bounds[1])*rect.height;
+        const margin = Math.min(48, viewport.clientHeight / 5);
+        if (y < viewRect.top + margin || y > viewRect.bottom - margin) {
+          viewport.scrollTop += y - (viewRect.top + viewport.clientHeight/2);
+        }
+        if (x < viewRect.left || x > viewRect.right) viewport.scrollLeft += x - (viewRect.left + viewport.clientWidth/2);
+        programmaticTop = viewport.scrollTop;
+      });
     }
+
   let detailImage = element('detail'), detailUrl, detailTimer, detailFailed = false, autoRefining = false;
   const detailCache = new DetailCache();
   function clearDetail() {
@@ -372,7 +400,7 @@
       },
       resident: () => !!header && !stale && !!imageId && images.has(imageId),
       touch: () => imageId && images.get(imageId),
-      invalidate() { generation++; stale = true; element('links').replaceChildren(); element('highlight').hidden = true; closeLens(); clearDetail(); },
+      invalidate() { generation++; stale = true; textLayer.replaceChildren(); element('links').replaceChildren(); element('highlight').hidden = true; closeLens(); clearDetail(); },
       evicted(id) {
         if (id !== imageId) { return; }
         closeLens(); clearDetail();
@@ -504,7 +532,7 @@
           objectUrl = url; header = m.header; bounds = header.bounds;
           problem = ''; stale = false; sheet.hidden = false; sheet.classList.remove('waiting'); element('empty').hidden = true;
           image.alt = `Rendered LaTeX page ${page + 1}`;
-          layout(); describe(); renderLinks();
+          layout(); describe(); renderLinks(); renderText();
           if (previous && previous !== url && !images.has(previousId)) { URL.revokeObjectURL(previous); }
           if (m.target) { highlight(m.target); }
           if (m.destination) {
@@ -561,7 +589,7 @@
         if (complete) { currentPage = count === 0 ? 0 : Math.min(currentPage,count-1); }
         layoutDocument(true, false, anchor); describe(); break;
       }
-      case 'jump': navigate(m.page, false); if (m.target) { target(m.target); } requestViewport(false); break;
+      case 'jump': if (m.target) { target(m.target); } else { navigate(m.page, false); } requestViewport(false); break;
       case 'invalidate': problem = ''; for (const view of views.values()) { view.invalidate(); } describe(); requestViewport(false); break;
       case 'error': problem = m.text; if (Number.isInteger(m.page)) { views.get(m.page)?.invalidate(); } else { for (const view of views.values()) { view.invalidate(); } } describe(); break;
       case 'link-error': problem = m.text; describe(); break;

@@ -15,6 +15,7 @@ export interface PreviewImageHeader {
   /** Native export wall time, excluding compilation and pipe transfer. */
   exportMs?: number;
   fallback?: string; annotations?: PreviewAnnotations;
+  text?: [number, number, number, number, number][];
 }
 export interface PreviewImage { header: PreviewImageHeader; bytes: Buffer }
 export type PreviewMessage =
@@ -60,7 +61,10 @@ export function isImageHeader(value: unknown): value is PreviewImageHeader {
     (h.svgEligible === undefined || typeof h.svgEligible === 'boolean') &&
     (h.vectorCost === undefined || count(h.vectorCost)) &&
     (h.exportMs === undefined || (typeof h.exportMs === 'number' && Number.isFinite(h.exportMs) && h.exportMs >= 0 && h.exportMs < 1e9)) &&
-    (h.annotations === undefined || annotations(h.annotations));
+    (h.annotations === undefined || annotations(h.annotations)) &&
+    (h.text === undefined || (Array.isArray(h.text) && h.text.length <= 8000 && h.text.every(g =>
+      Array.isArray(g) && g.length === 5 && Number.isInteger(g[0]) && g[0] > 0 && g[0] <= 0x10ffff &&
+      !(g[0] >= 0xd800 && g[0] <= 0xdfff) && rectangle(g.slice(1)))));
 }
 
 export function isPreviewMessage(value: unknown): value is PreviewMessage {

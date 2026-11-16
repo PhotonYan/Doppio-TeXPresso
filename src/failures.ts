@@ -17,6 +17,9 @@ export function describeFailure(error: unknown, configuration?: SessionConfigura
 } {
   const failure = error instanceof EngineFailure ? error : undefined;
   const detail = error instanceof Error ? error.message : String(error);
+  if (configuration?.engine === 'pdflatex') {
+    return { message: 'FlashTeX preview: ' + detail, setting: 'texpresso.flashtexHost' };
+  }
   if (failure?.code === 'PREVIEW_UNSUPPORTED') {
     return { message: detail, setting: 'texpresso.previewLocation' };
   }

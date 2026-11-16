@@ -1,14 +1,14 @@
 {
-  "name": "texpresso-basic",
-  "displayName": "TeXpresso",
-  "description": "Basic extension for interacting with TeXpresso for live previewing LaTeX documents",
-  "publisher": "DominikPeters",
-  "version": "1.9.0",
+  "name": "real-time-latex",
+  "displayName": "Real-Time LaTeX",
+  "description": "Incremental XeLaTeX and pdfLaTeX preview in VS Code, with bidirectional source navigation.",
+  "publisher": "PhotonYan",
+  "version": "0.1.0",
   "icon": "./assets/texpresso_logo.png",
-  "homepage": "https://github.com/DominikPeters/texpresso-vscode",
+  "homepage": "https://github.com/PhotonYan/Real_Time_LaTeX",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DominikPeters/texpresso-vscode.git"
+    "url": "https://github.com/PhotonYan/Real_Time_LaTeX.git"
   },
   "engines": {
     "vscode": "^1.88.0"
@@ -34,39 +34,43 @@
     "commands": [
       {
         "command": "texpresso.startDocument",
-        "title": "TeXpresso: Start Document",
+        "title": "Real-Time LaTeX: Start Document",
         "enablement": "!texpresso.starting",
         "icon": "$(play)"
       },
       {
+        "command": "texpresso.openPreview",
+        "title": "Real-Time LaTeX: Open Preview (Auto)"
+      },
+      {
         "command": "texpresso.selectMainDocument",
-        "title": "TeXpresso: Select Main Document"
+        "title": "Real-Time LaTeX: Select Main Document"
       },
       {
         "command": "texpresso.refresh",
-        "title": "TeXpresso: Refresh (Restart Preview)",
+        "title": "Real-Time LaTeX: Refresh (Restart Preview)",
         "enablement": "texpresso.running"
       },
       {
         "command": "texpresso.externalCompileAndRefresh",
-        "title": "TeXpresso: External Compile and Refresh",
+        "title": "Real-Time LaTeX: External Compile and Refresh",
         "enablement": "texpresso.running"
       },
       {
         "command": "texpresso.previousPage",
-        "title": "TeXpresso: Show Previous Page in Preview",
+        "title": "Real-Time LaTeX: Show Previous Page in Preview",
         "icon": "$(arrow-circle-left)",
         "enablement": "texpresso.inActiveEditor"
       },
       {
         "command": "texpresso.nextPage",
-        "title": "TeXpresso: Show Next Page in Preview",
+        "title": "Real-Time LaTeX: Show Next Page in Preview",
         "icon": "$(arrow-circle-right)",
         "enablement": "texpresso.inActiveEditor"
       },
       {
         "command": "texpresso.syncTeXForward",
-        "title": "TeXpresso: Show Current Position in Preview Window (SyncTeX)",
+        "title": "Real-Time LaTeX: SyncTeX Forward",
         "shortTitle": "TeXpresso SyncTeX",
         "enablement": "texpresso.inActiveEditor"
       },
@@ -77,90 +81,113 @@
       },
       {
         "command": "texpresso.activateSyncTeXForward",
-        "title": "TeXpresso: Activate SyncTeX Forward",
+        "title": "Real-Time LaTeX: Activate SyncTeX Forward",
         "enablement": "texpresso.inActiveEditor && !config.texpresso.syncTeXForwardOnSelection",
         "icon": "$(sync-ignored)"
       },
       {
         "command": "texpresso.deactivateSyncTeXForward",
-        "title": "TeXpresso: Deactivate SyncTeX Forward",
+        "title": "Real-Time LaTeX: Deactivate SyncTeX Forward",
         "enablement": "texpresso.inActiveEditor && config.texpresso.syncTeXForwardOnSelection",
         "icon": "$(sync)"
       },
       {
         "command": "texpresso.adoptTheme",
-        "title": "TeXpresso: Adopt Editor Color Theme",
+        "title": "Real-Time LaTeX: Adopt Editor Color Theme",
         "enablement": "texpresso.running"
       },
       {
         "command": "texpresso.defaultTheme",
-        "title": "TeXpresso: Adopt Default Color Theme",
+        "title": "Real-Time LaTeX: Adopt Default Color Theme",
         "enablement": "texpresso.running"
       },
       {
         "command": "texpresso.stop",
-        "title": "TeXpresso: Stop",
+        "title": "Real-Time LaTeX: Stop",
         "enablement": "texpresso.active",
         "icon": "$(debug-stop)"
       },
       {
         "command": "texpresso.restart",
-        "title": "TeXpresso: Restart Preview",
+        "title": "Real-Time LaTeX: Restart Preview",
         "icon": "$(refresh)",
         "enablement": "texpresso.hasDocument && !texpresso.starting"
       },
       {
         "command": "texpresso.showControls",
-        "title": "TeXpresso: Preview Controls"
+        "title": "Real-Time LaTeX: Preview Controls"
       },
       {
         "command": "texpresso.checkSetup",
-        "title": "TeXpresso: Check Setup"
+        "title": "Real-Time LaTeX: Check Setup"
       },
       {
         "command": "texpresso.showEngineLog",
-        "title": "TeXpresso: Show Engine Log"
+        "title": "Real-Time LaTeX: Show Engine Log"
       },
       {
         "command": "texpresso.showCompilerOutput",
-        "title": "TeXpresso: Show Compiler Output"
+        "title": "Real-Time LaTeX: Show Compiler Output"
       },
       {
         "command": "texpresso.openSettings",
-        "title": "TeXpresso: Open Settings"
+        "title": "Real-Time LaTeX: Open Settings"
       },
       {
         "command": "texpresso.rerunOnce",
-        "title": "TeXpresso: Rerun Once",
+        "title": "Real-Time LaTeX: Rerun Once",
         "icon": "$(run-all)",
         "enablement": "texpresso.canRerun"
       },
       {
         "command": "texpresso.pause",
-        "title": "TeXpresso: Pause Preview",
+        "title": "Real-Time LaTeX: Pause Preview",
         "icon": "$(debug-pause)",
         "enablement": "texpresso.canPause && !texpresso.paused"
       },
       {
         "command": "texpresso.resume",
-        "title": "TeXpresso: Resume Preview",
+        "title": "Real-Time LaTeX: Resume Preview",
         "icon": "$(play)",
         "enablement": "texpresso.canPause && texpresso.paused"
       },
       {
         "command": "texpresso.enableAutoRerun",
-        "title": "TeXpresso: Enable Automatic Reruns",
+        "title": "Real-Time LaTeX: Enable Automatic Reruns",
         "enablement": "texpresso.canAutoRerun && !texpresso.autoRerun"
       },
       {
         "command": "texpresso.disableAutoRerun",
-        "title": "TeXpresso: Disable Automatic Reruns",
+        "title": "Real-Time LaTeX: Disable Automatic Reruns",
         "enablement": "texpresso.canAutoRerun && texpresso.autoRerun"
       }
     ],
     "configuration": {
       "title": "TeXpresso",
       "properties": {
+        "texpresso.engine": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "xelatex",
+            "pdflatex"
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "description": "Preview engine. Auto uses FlashTeX for documents with a % !TeX program = pdflatex directive and keeps the TeXpresso engine for other documents."
+        },
+        "texpresso.flashtexHost": {
+          "type": "string",
+          "default": "flashtex-host",
+          "scope": "machine-overridable",
+          "description": "Path to the resident FlashTeX host executable for pdfLaTeX preview."
+        },
+        "texpresso.flashtexMutool": {
+          "type": "string",
+          "default": "mutool",
+          "scope": "machine-overridable",
+          "description": "Path to MuPDF mutool, which renders FlashTeX PDF pages for the embedded preview."
+        },
         "texpresso.command": {
           "type": "string",
           "default": "texpresso",
@@ -366,5 +393,8 @@
   "dependencies": {
     "tmp": "^0.2.3",
     "wsl-path": "^4.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/PhotonYan/Real_Time_LaTeX/issues"
   }
 }

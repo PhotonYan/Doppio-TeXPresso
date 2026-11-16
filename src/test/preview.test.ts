@@ -150,3 +150,9 @@ test('native export timing is optional and rejects nonfinite, negative and nonnu
   assert.equal(isImageHeader({ ...header, exportMs: 3.5 }), true);
   for (const exportMs of [-1, Infinity, NaN, '3']) { assert.equal(isImageHeader({ ...header, exportMs }), false); }
 });
+
+test('text layer metadata accepts bounded Unicode glyph rectangles', () => {
+  assert.ok(isImageHeader({ ...header, text: [[0x4e2d, 10, 20, 30, 40]] }));
+  assert.equal(isImageHeader({ ...header, text: [[0xd800, 10, 20, 30, 40]] }), false);
+  assert.equal(isImageHeader({ ...header, text: [[65, 10, 20, 10, 40]] }), false);
+});

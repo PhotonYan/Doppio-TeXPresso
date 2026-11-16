@@ -61,3 +61,9 @@ button[aria-pressed="true"] { background: var(--vscode-toolbar-activeBackground,
 .page-highlight { position: absolute; width: 22px; height: 22px; margin: -11px; border-radius: 50%; border: 2px solid #087bea; background: #2090ff44; pointer-events: none; animation: locate 1.5s ease-out forwards; }
 #viewport.magnify .page-image, #viewport.magnify .page-vector, #viewport.magnify .page-raster { cursor: zoom-in; touch-action: none; }
 @media (prefers-reduced-motion: reduce) { .page-highlight { animation: none; } }
+
+/* Transparent selectable text overlays the faithfully rendered page. */
+.page-sheet { container-type: inline-size; }
+.page-text { position: absolute; inset: 0; user-select: text; cursor: text; overflow: hidden; }
+.page-text span { position: absolute; display: block; overflow: hidden; white-space: pre; color: transparent; line-height: 1; user-select: text; }
+.page-text span::selection { color: transparent; background: rgba(60, 125, 245, .38); }

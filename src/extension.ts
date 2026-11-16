@@ -13,8 +13,11 @@ import { describeFailure } from './failures';
 import { setupReport } from './setup';
 import { renamedPath } from './renames';
 import { mainDocuments } from './root-selection';
+import { subfileParentDirectory } from './main-document';
 import type { SessionConfiguration } from './configuration';
 import type { FileChange, WatchFile } from './dependencies';
+
+type Compiler = 'xelatex' | 'pdflatex';
 
 tmp.setGracefulCleanup();
 let deactivateSession: (() => Promise<void>) | undefined;
@@ -27,6 +30,19 @@ export function activate(context: vscode.ExtensionContext): void {
     void dispose.finally(() => shutdowns.delete(dispose));
   }
   let activeSession: TexpressoSession | undefined;
+  let compilerOverride: Compiler | undefined;
+  let pendingFollow: { session: TexpressoSession; document: vscode.TextDocument; line: number; sequence: number } | undefined;
+  let followTimer: ReturnType<typeof setTimeout> | undefined;
+  function finishEditFollow(session: TexpressoSession): void {
+    const pending = pendingFollow;
+    if (!pending || pending.session !== session) return;
+    clearTimeout(followTimer);
+    followTimer = setTimeout(() => {
+      if (pendingFollow !== pending || running() !== session) return;
+      pendingFollow = undefined;
+      session.sync.syncForward(pending.document, pending.line);
+    }, 180);
+  }
   let preview: PreviewController | undefined;
   let startRequest = 0;
   let disposeTheme = () => {};
@@ -111,7 +127,9 @@ export function activate(context: vscode.ExtensionContext): void {
     startRequest++;
     const previous = activeSession;
     activeSession = undefined;
+    compilerOverride = undefined;
     pendingRename = undefined;
+    pendingFollow = undefined; clearTimeout(followTimer);
     preview?.dispose(); preview = undefined;
     if (previous) { retiring(previous.dispose()); }
     disposeTheme();
@@ -137,11 +155,29 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  async function startDocument(document = vscode.window.activeTextEditor?.document, checkRoot = true): Promise<void> {
+  async function startDocument(document = vscode.window.activeTextEditor?.document, checkRoot = true,
+    chooseCompiler = false): Promise<void> {
     const request = ++startRequest;
     pendingRename = undefined;
     if (!document) {
       void vscode.window.showErrorMessage('TeXpresso: Open a LaTeX document first.');
+      return;
+    }
+    let selected = checkRoot ? undefined : compilerOverride;
+    if (chooseCompiler) {
+      const choices: { label: string; description: string; compiler: Compiler }[] = [
+        { label: 'XeLaTeX', description: 'TeXpresso · Unicode and system fonts', compiler: 'xelatex' },
+        { label: 'pdfLaTeX', description: 'FlashTeX · incremental PDF compilation', compiler: 'pdflatex' }
+      ];
+      const choice = await vscode.window.showQuickPick(choices, { title: 'Real-Time LaTeX: Select Compiler' });
+      if (!choice || request !== startRequest) { return; }
+      selected = choice.compiler;
+    }
+    const current = running();
+    if (checkRoot && current?.sync.contains(document) && preview &&
+        (!selected || (current.configuration.engine === 'pdflatex' ? 'pdflatex' : 'xelatex') === selected)) {
+      if (selected) { compilerOverride = selected; }
+      preview.reveal();
       return;
     }
     if (checkRoot) {
@@ -157,7 +193,23 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     let temporaryDirectory: tmp.DirResult | undefined;
     try {
+      // A saved root can outlive VS Code's background text model. Reopen it
+      // before reading settings or starting a replacement engine.
+      if (document.isClosed && !document.isUntitled) {
+        document = await vscode.workspace.openTextDocument(document.uri);
+        if (request !== startRequest) { return; }
+      }
       const configuration = readConfiguration(settings(document));
+      if (selected) { configuration.engine = selected; }
+      if (configuration.engine === 'auto') {
+        const program = document.getText().match(/^\s*%\s*!\s*TeX[ \t]+(?:TS-)?program\s*=\s*(\w+)/im)?.[1];
+        if (program?.toLowerCase() === 'pdflatex') configuration.engine = 'pdflatex';
+      }
+      if (configuration.engine === 'pdflatex') configuration.useWSL = false;
+      const subfileParent = subfileParentDirectory(document);
+      if (subfileParent && !configuration.includeDirectories.includes(subfileParent)) {
+        configuration.includeDirectories.push(subfileParent);
+      }
       let rootPath = document.fileName;
       if (document.isUntitled) {
         temporaryDirectory = tmp.dirSync({ unsafeCleanup: true });
@@ -187,12 +239,14 @@ export function activate(context: vscode.ExtensionContext): void {
             }
           },
           synctex: (file, line, column, word) => { void revealSource(session, file, line, column, word); },
-          preview: event => { if (activeSession === session) { preview?.handle(event); } },
-          rendered: () => {
-            if (running() === session && settings(session.document).get('syncTeXForwardOnSelection', true)) {
-              syncForward();
+          preview: event => {
+            if (activeSession !== session) return;
+            preview?.handle(event);
+            if ('header' in event && pendingFollow?.session === session && event.header.sequence === pendingFollow.sequence) {
+              finishEditFollow(session);
             }
           },
+          rendered: () => { if (!session.embedded && running() === session) finishEditFollow(session); },
           restart: () => {
             if (running() === session) {
               void startDocument(session.document, false);
@@ -209,12 +263,19 @@ export function activate(context: vscode.ExtensionContext): void {
             }
           }
         }, temporaryDirectory, undefined, {
-          watchFile, roots: vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath)
+          watchFile, subfileParent, roots: vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath),
+          watchProject: (root, changed) => {
+            const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
+            const handlers = [watcher.onDidChange(uri => changed(uri.fsPath)), watcher.onDidCreate(uri => changed(uri.fsPath)),
+              watcher.onDidDelete(uri => changed(uri.fsPath))];
+            return { dispose() { handlers.forEach(handler => handler.dispose()); watcher.dispose(); } };
+          }
         });
       temporaryDirectory = undefined;
       const previous = activeSession;
       preview?.dispose(); preview = undefined;
       activeSession = session;
+      compilerOverride = selected;
       if (previous) { retiring(previous.dispose()); }
       disposeTheme();
       retiring(compiler.dispose());
@@ -271,7 +332,8 @@ export function activate(context: vscode.ExtensionContext): void {
   function register(name: string, callback: (...args: never[]) => unknown): void {
     context.subscriptions.push(vscode.commands.registerCommand('texpresso.' + name, callback));
   }
-  register('startDocument', () => startDocument());
+  register('startDocument', () => startDocument(undefined, true, true));
+  register('openPreview', () => startDocument());
   register('selectMainDocument', async () => {
     const source = vscode.window.activeTextEditor?.document || activeSession?.document;
     if (!source) { return; }
@@ -336,7 +398,7 @@ export function activate(context: vscode.ExtensionContext): void {
         session.setAutoRerun(settings(session.document).get('autoRerun', false));
       }
       const launchKeys = ['command', 'useWSL', 'useChangeRangeMode', 'packageProvider', 'includeDirectories', 'arguments',
-        'streamFiles', 'watchDependencies', 'previewLocation'];
+        'streamFiles', 'watchDependencies', 'previewLocation', 'engine', 'flashtexHost', 'flashtexMutool'];
       if (launchKeys.some(key => event.affectsConfiguration('texpresso.' + key, session.document.uri)) &&
           JSON.stringify(readConfiguration(settings(session.document))) !== JSON.stringify(session.configuration)) {
         void vscode.window.showInformationMessage('TeXpresso settings changed. Restart the preview to apply them.', 'Restart')
@@ -349,14 +411,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidOpenTextDocument(document => running()?.sync.openDocument(document)),
     vscode.workspace.onDidCloseTextDocument(document => {
-      if (document === activeSession?.document) {
-        if (pendingRename !== activeSession) {
-          stop();
-        }
-      } else {
-        const session = running();
-        session?.sync.closeDocument(document);
-        session?.dependencies.closed(document.uri.fsPath);
+      const session = activeSession;
+      if (!session || pendingRename === session) { return; }
+      // Closing an untitled root discards its only source. A saved root can
+      // fall back to disk while the preview and its engine stay alive.
+      if (document === session.document && document.isUntitled) {
+        void stop();
+      } else if (session.state === 'running') {
+        session.sync.closeDocument(document);
+        session.dependencies.closed(document.uri.fsPath);
       }
     }),
     vscode.workspace.onWillRenameFiles(event => {
@@ -390,14 +453,20 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       });
     }),
-    vscode.workspace.onDidChangeTextDocument(event => running()?.sync.change(event.document, event.contentChanges)),
-    vscode.window.onDidChangeActiveTextEditor(updateContexts),
-    vscode.window.onDidChangeTextEditorSelection(event => {
+    vscode.workspace.onDidChangeTextDocument(event => {
       const session = running();
-      if (session && settings(session.document).get('syncTeXForwardOnSelection', true)) {
-        syncForward(event.textEditor);
-      }
+      if (!session) return;
+      session.sync.change(event.document, event.contentChanges);
+      if (!event.contentChanges.length || !session.sync.contains(event.document) ||
+          !settings(session.document).get('syncTeXForwardOnSelection', true)) return;
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document !== event.document) return;
+      const change = event.contentChanges[event.contentChanges.length - 1];
+      const line = event.document.positionAt(change.rangeOffset + change.text.length).line;
+      clearTimeout(followTimer);
+      pendingFollow = { session, document: event.document, line, sequence: session.previewSequence };
     }),
+    vscode.window.onDidChangeActiveTextEditor(updateContexts),
     vscode.window.onDidChangeActiveColorTheme(() => {
       const session = running();
       if (session && settings(session.document).get('useEditorTheme', false)) {

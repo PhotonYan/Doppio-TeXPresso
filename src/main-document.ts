@@ -14,6 +14,17 @@ export function magicRoot(text: string): string | undefined {
   return value?.replace(/^(["'])(.*)\1$/, '$2');
 }
 
+/** Parent search directory for independently compiled subfiles documents. */
+export function subfileParentDirectory(document: RootDocument): string | undefined {
+  if (document.isUntitled) return undefined;
+  const text = document.getText().split(/\r?\n/)
+    .map(line => line.replace(/(^|[^\\])(?:\\\\)*%.*/, '$1')).join('\n');
+  const match = text.match(/\\documentclass\s*\[([^\]\r\n]+)\]\s*\{\s*subfiles\s*\}/i);
+  const target = match?.[1].trim().replace(/^(["'])(.*)\1$/, '$2');
+  if (!target || /[\\{},]/.test(target)) return undefined;
+  return path.dirname(path.resolve(path.dirname(document.fileName), target));
+}
+
 export function isMainDocument(text: string): boolean {
   // Ignore escaped percent signs and comments, so commented examples do not
   // turn a chapter into a standalone document.

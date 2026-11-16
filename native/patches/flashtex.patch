@@ -1,0 +1,13 @@
+diff --git a/crates/flashtex-engine/src/arena.rs b/crates/flashtex-engine/src/arena.rs
+index 0d28a14..d9997ba 100644
+--- a/crates/flashtex-engine/src/arena.rs
++++ b/crates/flashtex-engine/src/arena.rs
+@@ -676,7 +676,7 @@ fn merge_sealed(older: &Log, newer: &Log) -> Log {
+                 *m = mx | my;
+                 let mut all = mx | my;
+                 while all != 0 {
+-                    let bitv = all.isolate_lowest_one();
++                    let bitv = all & all.wrapping_neg();
+                     let (in_x, in_y) = (mx & bitv != 0, my & bitv != 0);
+                     if in_x {
+                         vals.push(xv[kx]);

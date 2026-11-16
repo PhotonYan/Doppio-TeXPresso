@@ -22,6 +22,8 @@ const { spawnSync } = require('node:child_process');
   const builder = path.resolve(__dirname, '../src/test/fixtures/build.cjs');
   const quote = value => process.platform === 'win32' ? '"' + value + '"' : "'" + value.replace(/'/g, "'\\''") + "'";
   fs.writeFileSync(path.join(workspace, '.vscode/settings.json'), JSON.stringify({
+    'texpresso.flashtexHost': process.env.TEXPRESSO_FLASHTEX_HOST,
+    'texpresso.flashtexMutool': process.env.TEXPRESSO_FLASHTEX_MUTOOL,
     'texpresso.command': realEngine ? (useWSL && !preview ? 'env' : binary) : process.execPath,
     'texpresso.arguments': realEngine ? (useWSL && !preview ? ['SDL_VIDEODRIVER=dummy', binary] : []) : [fixture],
     'texpresso.useWSL': useWSL,
@@ -40,6 +42,7 @@ const { spawnSync } = require('node:child_process');
   // workspace reloads the extension host on VS Code 1.88, aborting the suite.
   const workspaceFile = path.join(root, 'fixture.code-workspace');
   fs.writeFileSync(workspaceFile, JSON.stringify({ folders: [{ path: workspace }] }));
+  if (process.env.TEXPRESSO_TEST_LW_DIR) { fs.mkdirSync(path.join(root, 'extensions'), { recursive: true }); fs.cpSync(process.env.TEXPRESSO_TEST_LW_DIR, path.join(root, 'extensions', 'james-yu.latex-workshop-10.20.0'), { recursive: true }); }
   let failed = true;
   const packaged = process.argv.includes('--packaged');
   try {
@@ -51,7 +54,7 @@ const { spawnSync } = require('node:child_process');
       if (fs.existsSync(renamed)) { executable = renamed; }
     }
     const profiles = ['--user-data-dir=' + path.join(root, 'user'), '--extensions-dir=' + path.join(root, 'extensions')];
-    let development = path.resolve(__dirname, '..');
+    let development = process.env.TEXPRESSO_INSTALLED_TEST ? path.join(os.homedir(), '.vscode/extensions/photonyan.real-time-latex-0.1.0') : path.resolve(__dirname, '..');
     if (packaged) {
       const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(executable, { reuseMachineInstall: true });
       const result = spawnSync(cli, [...cliArgs, '--install-extension', path.resolve('artifacts/texpresso.vsix'), '--force', ...profiles],
@@ -70,8 +73,9 @@ const { spawnSync } = require('node:child_process');
       reuseMachineInstall: true,
       version: process.env.VSCODE_VERSION || 'stable',
       extensionDevelopmentPath: development,
-      extensionTestsPath: path.resolve(__dirname, '../out/test/integration/' + (profileAuto ? 'auto-profile.js' : preview ? 'preview.js' : realEngine ? 'real-engine.js' : 'index.js')),
+      extensionTestsPath: path.resolve(__dirname, '../out/test/integration/' + (process.env.TEXPRESSO_FLASHTEX_HOST ? 'flashtex.js' : profileAuto ? 'auto-profile.js' : preview ? 'preview.js' : realEngine ? 'real-engine.js' : 'index.js')),
       extensionTestsEnv: {
+        TEXPRESSO_DEBUG_PORT: process.env.TEXPRESSO_DEBUG_PORT,
         TEXPRESSO_TEST_WEBVIEW_ONLY: process.env.TEXPRESSO_TEST_WEBVIEW_ONLY,
         TEXPRESSO_TEST_PACKAGED: packaged ? '1' : undefined,
         TEXPRESSO_TEST_TRACE: path.join(root, 'engine.jsonl'),
@@ -95,7 +99,7 @@ const { spawnSync } = require('node:child_process');
       // must not silently turn 100 ms typing into 1000 ms typing.
       // https://www.electronjs.org/docs/latest/api/command-line-switches
       // https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md
-      launchArgs: [workspaceFile, ...(profileAuto ? ['--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'] : []), ...(packaged ? [] : ['--disable-extensions']), '--disable-extension=github.copilot-chat', '--skip-welcome', '--skip-release-notes',
+      launchArgs: [workspaceFile, ...(profileAuto ? ['--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'] : []), ...(packaged || process.env.TEXPRESSO_TEST_LW_DIR ? [] : ['--disable-extensions']), '--disable-extension=github.copilot-chat', '--skip-welcome', '--skip-release-notes',
         '--disable-workspace-trust', ...profiles,
         ...(process.env.TEXPRESSO_DEBUG_PORT ? ['--remote-debugging-port=' + process.env.TEXPRESSO_DEBUG_PORT] : [])]
     });

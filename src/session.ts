@@ -1,7 +1,8 @@
 import type * as vscode from 'vscode';
 import type { DirResult } from 'tmp';
 import { buildLaunchCommand, SessionConfiguration } from './configuration';
-import { EngineProcess, SpawnEngine } from './engine-process';
+import { EngineProcess, type EngineEvents, type SpawnEngine } from './engine-process';
+import { FlashtexEngine, type WatchProject } from './flashtex-engine';
 import { DocumentSync } from './document-sync';
 import { SessionPaths } from './paths';
 import { SessionOutput } from './logs';
@@ -27,6 +28,8 @@ export interface SessionEvents {
 
 export interface SessionServices {
   watchFile?: WatchFile; roots?: readonly string[]; watchDelay?: number;
+  watchProject?: WatchProject;
+  subfileParent?: string;
   probePreview?: typeof probePreview;
 }
 
@@ -36,7 +39,7 @@ export class TexpressoSession {
       header.revision, header.sequence, svgDom]) + '\n');
   }
 
-  private engine: EngineProcess;
+  private engine: EngineProcess | FlashtexEngine;
   private output: SessionOutput;
   private ended = false;
   private shutdown?: Promise<void>;
@@ -61,7 +64,7 @@ export class TexpressoSession {
     readonly document: vscode.TextDocument,
     readonly configuration: SessionConfiguration,
     readonly paths: SessionPaths,
-    documents: () => readonly vscode.TextDocument[],
+    private documents: () => readonly vscode.TextDocument[],
     private events: SessionEvents,
     private temporaryDirectory?: DirResult,
     spawnEngine?: SpawnEngine,
@@ -69,7 +72,7 @@ export class TexpressoSession {
   ) {
     this.autoRerun = configuration.autoRerun;
     this.output = new SessionOutput((target, text) => events.output(target, text));
-    this.engine = new EngineProcess({
+    const engineEvents: EngineEvents = {
       message: message => this.handleMessage(message),
       image: image => { if (!this.ended) { this.events.preview?.(image); } },
       debug: text => events.debug(text),
@@ -96,11 +99,15 @@ export class TexpressoSession {
           this.dispose();
         }
       }
-    }, spawnEngine);
-    this.sync = new DocumentSync(document, paths, configuration.useChangeRangeMode,
+    };
+    this.engine = configuration.engine === 'pdflatex'
+      ? new FlashtexEngine(engineEvents, configuration, paths.rootEnginePath, services.subfileParent, services.watchProject)
+      : new EngineProcess(engineEvents, spawnEngine);
+    this.sync = new DocumentSync(document, paths, configuration.useChangeRangeMode && !(this.engine instanceof FlashtexEngine),
       documents, command => this.send(command));
     this.dependencies = new Dependencies(paths, this.sync, {
-      watch: configuration.watchDependencies, stream: configuration.streamFiles,
+      watch: configuration.watchDependencies && !(this.engine instanceof FlashtexEngine),
+      stream: configuration.streamFiles && !(this.engine instanceof FlashtexEngine),
       roots: [...(services.roots || []), path.dirname(paths.rootEditorPath),
         ...configuration.includeDirectories.map(dir => paths.toEditor(paths.includeDirectory(dir)))],
       watchFile: services.watchFile, delay: services.watchDelay
@@ -111,6 +118,28 @@ export class TexpressoSession {
   }
 
   async start(): Promise<void> {
+    if (this.engine instanceof FlashtexEngine) {
+      this.embedded = true;
+      this.previewLinks = true;
+      this.autoRerun = false;
+      this.unsupported.add('rerun');
+      try {
+        await this.engine.start();
+        if (this.ended) return;
+        this.state = 'running';
+        for (const document of this.documents()) {
+          if (document !== this.document && document.isDirty && document.uri.scheme === 'file' &&
+              this.engine.isProjectFile(document.uri.fsPath) && /\.(tex|ltx|sty|cls|cfg|def)$/i.test(document.fileName)) {
+            this.sync.announce(this.paths.logicalPath(document.uri.fsPath));
+          }
+        }
+        this.sync.initialize();
+        this.events.state(this.state);
+      } catch (error) {
+        this.fail(error instanceof Error ? error : Error(String(error)));
+      }
+      return;
+    }
     let launch;
     try {
       launch = buildLaunchCommand(this.configuration, this.paths);

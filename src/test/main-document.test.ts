@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
-import { MainDocuments, magicRoot, isMainDocument, RootDocument } from '../main-document';
+import { MainDocuments, magicRoot, isMainDocument, subfileParentDirectory, RootDocument } from '../main-document';
 
 const doc = (name: string, text: string): RootDocument => ({ fileName: path.resolve(name), isUntitled: false, getText: () => text });
 function fixture(documents: RootDocument[]) {
@@ -58,4 +58,12 @@ test('selected roots are remembered per project; cancellation and stale selectio
   docs.splice(docs.indexOf(main), 1);
   assert.equal(await f.roots.resolve(child), undefined);
   assert.equal(f.saved.size, 0);
+});
+
+test('standalone subfiles find their parent project without mistaking comments or options', async () => {
+  assert.equal(subfileParentDirectory(doc('/book/chapters/chapter.tex', '\\documentclass[../main]{subfiles}')), path.resolve('/book'));
+  assert.equal(subfileParentDirectory(doc('/book/chapters/chapter.tex', '% \\documentclass[../wrong]{subfiles}\n\\documentclass[../My Book.tex]{subfiles}')), path.resolve('/book'));
+  assert.equal(subfileParentDirectory(doc('/book/chapters/chapter.tex', '\\documentclass{article}')), undefined);
+  assert.equal(subfileParentDirectory(doc('/book/chapters/chapter.tex', '\\documentclass[\\dynamic]{subfiles}')), undefined);
+  assert.equal(subfileParentDirectory({ ...doc('/book/chapters/chapter.tex', '\\documentclass[../main]{subfiles}'), isUntitled: true }), undefined);
 });

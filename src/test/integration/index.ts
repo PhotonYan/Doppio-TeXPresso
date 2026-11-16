@@ -42,7 +42,7 @@ async function capture(name: string): Promise<void> {
 }
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('DominikPeters.texpresso-basic');
+  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
   assert.ok(extension, 'extension discovered');
   if (process.env.TEXPRESSO_TEST_PACKAGED) {
     assert.match(extension.extensionPath, /extensions/);
@@ -68,7 +68,7 @@ export async function run(): Promise<void> {
     await fs.writeFile(hinted, '% !TeX root = bridge.tex\nChapter content.\n');
     await fs.writeFile(bridge, '% !TeX root = main.tex\n');
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(hinted));
-    await command('startDocument');
+    await command('openPreview');
     await until(async () => samePath((await starts()).at(-1)?.root, mainPath), 'magic root chain selects the main document');
     await command('stop');
     const retired = (await starts()).at(-1)!.pid!;
@@ -76,7 +76,7 @@ export async function run(): Promise<void> {
     await fs.writeFile(process.env.TEXPRESSO_TEST_TRACE!, '');
     await vscode.window.showTextDocument(main);
     console.log('PASS: chained magic root comments and awaited process shutdown');
-    await command('startDocument');
+    await command('openPreview');
     await until(async () => (await trace()).some(item => item.command?.[0] === 'synctex-forward' &&
       samePath(item.command[1], mainPath) && item.command[2] === 5), 'initial SyncTeX uses current cursor and one-based lines');
     console.log('PASS: initial cursor synchronization through a real engine process');
@@ -204,7 +204,7 @@ export async function run(): Promise<void> {
     await secondSettings.update('arguments', [process.env.TEXPRESSO_TEST_ENGINE!, '--second-project'], vscode.ConfigurationTarget.WorkspaceFolder);
     assert.equal(vscode.workspace.getConfiguration('texpresso', vscode.Uri.file(secondRoot)).get('command'), process.env.TEXPRESSO_TEST_NODE);
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(secondChild));
-    await command('startDocument');
+    await command('openPreview');
     await until(async () => samePath((await starts()).at(-1)?.root, secondRoot), 'magic root in second workspace folder');
     assert.ok((await trace()).filter(item => item.type === 'start').at(-1)?.args?.includes('--second-project'), 'selected root supplies its own folder settings');
     await command('stop');
@@ -213,13 +213,13 @@ export async function run(): Promise<void> {
     const beforeFailure = (await starts()).length;
     const configuration = vscode.workspace.getConfiguration('texpresso', vscode.Uri.file(mainPath));
     await configuration.update('command', path.join(workspace, 'missing-texpresso'), vscode.ConfigurationTarget.WorkspaceFolder);
-    await command('startDocument');
+    await command('openPreview');
     await capture('launch-failure');
     await command('checkSetup');
     await capture('setup-report');
     console.log('PASS: failed launch and Check Setup complete without a running preview');
     await configuration.update('command', process.env.TEXPRESSO_TEST_NODE, vscode.ConfigurationTarget.WorkspaceFolder);
-    await command('startDocument');
+    await command('openPreview');
     await until(async () => (await starts()).length === beforeFailure + 1, 'recover after a failed launch');
     console.log('PASS: recovery after a failed launch');
   } finally {

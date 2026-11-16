@@ -77,12 +77,14 @@ async function checkSvgWebview(extensionUri: vscode.Uri): Promise<void> {
 }
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('DominikPeters.texpresso-basic');
+  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
   assert.ok(extension); await extension.activate();
-  await checkPreviewStartup(extension.extensionUri);
-  await checkSvgWebview(extension.extensionUri);
-  await checkContinuousPreview(extension.extensionUri);
-  if(process.env.TEXPRESSO_TEST_WEBVIEW_ONLY==='1') {return;}
+  if (process.env.TEXPRESSO_TEST_WEBVIEW_ONLY === '1') {
+    await checkPreviewStartup(extension.extensionUri);
+    await checkSvgWebview(extension.extensionUri);
+    await checkContinuousPreview(extension.extensionUri);
+    return;
+  }
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
   const file = path.join(root, 'embedded-preview.tex');
   await fs.writeFile(file, String.raw`\documentclass{article}
@@ -120,7 +122,7 @@ Pages are compiled when requested, and images have a bounded pixel budget.
   await settings.update('syncTeXForwardOnSelection', false, vscode.ConfigurationTarget.WorkspaceFolder);
   const command = (name: string) => vscode.commands.executeCommand('texpresso.' + name);
   try {
-    await command('startDocument');
+    await command('openPreview');
     await until(async () => (await renders()).some(r => r.page === 0), 'first webview render request', 90000);
     await until(async () => (await decoded()).at(-1)?.page === 0, 'first page decoded');
     assert.ok(vscode.window.tabGroups.all.some(group => group.tabs.some(tab => tab.input instanceof vscode.TabInputWebview)));

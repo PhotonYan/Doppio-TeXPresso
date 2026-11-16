@@ -80,7 +80,7 @@ export class PreviewController {
   constructor(private api: typeof vscode, extensionUri: vscode.Uri, readonly session: TexpressoSession,
     closed: () => void, private action: (name: 'restart' | 'pause' | 'output') => void) {
     const media = api.Uri.joinPath(extensionUri, 'media');
-    this.panel = api.window.createWebviewPanel('texpresso.preview', 'TeXpresso — ' + path.basename(session.document.fileName),
+    this.panel = api.window.createWebviewPanel('texpresso.preview', 'Real-Time LaTeX — ' + path.basename(session.document.fileName),
       { viewColumn: api.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, localResourceRoots: [media] });
     const webview = this.panel.webview;
     const script = webview.asWebviewUri(api.Uri.joinPath(media, 'preview.js'));
@@ -681,5 +681,7 @@ export class PreviewController {
       this.panel.webview.postMessage({ instance: this.instance, ...message })).catch(() => false);
   }
   private release(): void { clearTimeout(this.decodeTimeout); this.decodeTimeout = undefined; this.inFlight = undefined; this.rasterPending = undefined; }
+  reveal(): void { if (!this.disposed) this.panel.reveal(this.panel.viewColumn, true); }
+
   dispose(): void { if (!this.disposed) { this.disposed = true; this.interactive(); this.cancelPrefetch(); this.release(); this.clearPages(); this.svgDocuments.clear(); this.svgDocumentBytes = 0; this.decodedImages.clear(); this.decodedPages.clear(); this.rasterBase = undefined; this.svgBase = undefined; this.svgPending = undefined; this.panel.dispose(); } }
 }

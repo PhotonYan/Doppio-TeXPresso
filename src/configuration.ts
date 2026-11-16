@@ -5,6 +5,9 @@ import { SessionPaths } from './paths';
 export type PackageProvider = 'auto' | 'texlive' | 'tectonic';
 
 export interface SessionConfiguration {
+  engine?: 'auto' | 'xelatex' | 'pdflatex';
+  flashtexHost?: string;
+  flashtexMutool?: string;
   command: string;
   useWSL: boolean;
   useChangeRangeMode: boolean;
@@ -26,6 +29,9 @@ export interface LaunchCommand {
 // Read settings for the root document on every start, including multi-root workspaces.
 export function readConfiguration(configuration: vscode.WorkspaceConfiguration): SessionConfiguration {
   return {
+    engine: configuration.get<SessionConfiguration['engine']>('engine', 'auto'),
+    flashtexHost: configuration.get<string>('flashtexHost', 'flashtex-host'),
+    flashtexMutool: configuration.get<string>('flashtexMutool', 'mutool'),
     command: configuration.get<string>('command', 'texpresso'),
     useWSL: configuration.get<boolean>('useWSL', false),
     useChangeRangeMode: configuration.get<boolean>('useChangeRangeMode', false),

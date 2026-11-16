@@ -140,3 +140,6 @@ dist
 
 /artifacts/
 *.vsix
+
+# Engine source worktrees and local launchers created by the build script
+/.real-time-latex/

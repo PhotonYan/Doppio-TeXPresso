@@ -1,0 +1,312 @@
+diff --git a/src/dvi/Makefile b/src/dvi/Makefile
+index 99a3faa..b85f07d 100644
+--- a/src/dvi/Makefile
++++ b/src/dvi/Makefile
+@@ -14,6 +14,9 @@ all: $(DIR)/libmydvi.a
+ $(DIR)/libmydvi.a: $(DIR_OBJECTS)
+ 	ar cr $@ $^
+ 
++$(DIR)/dvi_prim.o: dvi_prim.c
++	$(CC) -I../include $(shell pkg-config --cflags freetype2) -c -o $@ $<
++
+ $(DIR)/dvi_resmanager.o: dvi_resmanager.c
+ 	$(CC) -I../include $(shell pkg-config --cflags freetype2) -c -o $@ $<
+ 
+diff --git a/src/dvi/dvi_fonttable.c b/src/dvi/dvi_fonttable.c
+index e4683bb..722d6df 100644
+--- a/src/dvi/dvi_fonttable.c
++++ b/src/dvi/dvi_fonttable.c
+@@ -42,8 +42,11 @@ dvi_fonttable *dvi_fonttable_new(fz_context *ctx)
+ 
+ void dvi_fonttable_free(fz_context *ctx, dvi_fonttable *ft)
+ {
+-  if (ft->buffer)
++  if (ft->buffer) {
++    for (int i = 0; i < ft->capacity; i++)
++      if (ft->buffer[i].kind == XDV_FONT) fz_free(ctx, ft->buffer[i].xdv_font.unicode_by_glyph);
+     fz_free(ctx, ft->buffer);
++  }
+   fz_free(ctx, ft);
+ }
+ 
+diff --git a/src/dvi/dvi_prim.c b/src/dvi/dvi_prim.c
+index 8c1a3d9..67c2aa9 100644
+--- a/src/dvi/dvi_prim.c
++++ b/src/dvi/dvi_prim.c
+@@ -23,6 +23,8 @@
+  */
+ 
+ #include <string.h>
++#include <ft2build.h>
++#include FT_FREETYPE_H
+ #include "mydvi.h"
+ #include "mydvi_interp.h"
+ #include "fz_util.h"
+@@ -320,6 +322,8 @@ void dvi_exec_xdvfontdef(fz_context *ctx, dvi_context *dc, dvi_state *st, uint32
+     def->kind = XDV_FONT;
+     def->xdv_font.font = dvi_resmanager_get_xdv_font(ctx, dc->resmanager, name, name_len, index);
+     def->xdv_font.spec = spec;
++    def->xdv_font.unicode_by_glyph = NULL;
++    def->xdv_font.unicode_count = 0;
+   }
+ }
+ 
+@@ -336,6 +340,25 @@ void dvi_exec_xdvglyphs(fz_context *ctx, dvi_context *dc, dvi_state *st, fixed_t
+   }
+   fz_font *font = def->xdv_font.font;
+   fixed_t size = def->xdv_font.spec.size;
++  /* XDV commonly stores only glyph IDs. Build a reverse Unicode cmap once
++   * per font; unmappable glyphs remain unknown rather than fabricated. */
++  if (font && !def->xdv_font.unicode_by_glyph) {
++    FT_Face face = (FT_Face)fz_font_ft_face(ctx, font);
++    if (face && face->num_glyphs > 0 && face->num_glyphs <= 1000000) {
++      int count = (int)face->num_glyphs;
++      int *map = fz_calloc(ctx, count, sizeof(int));
++      FT_UInt gid = 0;
++      FT_ULong code = FT_Get_First_Char(face, &gid);
++      while (gid) {
++        if (gid < (FT_UInt)count && code <= 0x10ffff &&
++            (map[gid] == 0 || (map[gid] >= 0x2e80 && map[gid] <= 0x2fdf && code >= 0x4e00 && code <= 0x9fff))) map[gid] = (int)code;
++        code = FT_Get_Next_Char(face, code, &gid);
++      }
++      def->xdv_font.unicode_by_glyph = map;
++      def->xdv_font.unicode_count = count;
++    }
++  }
++
+   if (!dc->dev);
+   else if (font)
+   {
+@@ -358,6 +381,14 @@ void dvi_exec_xdvglyphs(fz_context *ctx, dvi_context *dc, dvi_state *st, fixed_t
+         char name[128] = {0};
+         fz_get_glyph_name(ctx, font, glyphs[i], name, sizeof name);
+         int unicode = fz_unicode_from_glyph_name_strict(name);
++        if (unicode <= 0 && glyphs[i] < def->xdv_font.unicode_count) unicode = def->xdv_font.unicode_by_glyph[glyphs[i]];
++        if (unicode <= 0) {
++          if (!strcmp(name, "fi") || !strcmp(name, "f_i")) unicode = 0xfb01;
++          else if (!strcmp(name, "fl") || !strcmp(name, "f_l")) unicode = 0xfb02;
++          else if (!strcmp(name, "ff") || !strcmp(name, "f_f")) unicode = 0xfb00;
++          else if (!strcmp(name, "ffi") || !strcmp(name, "f_f_i")) unicode = 0xfb03;
++          else if (!strcmp(name, "ffl") || !strcmp(name, "f_f_l")) unicode = 0xfb04;
++        }
+         fz_show_glyph(ctx, text, font, ctm, glyphs[i], unicode > 0 ? unicode : 0, 0, 0, FZ_BIDI_LTR,
+                       FZ_LANG_UNSET);
+       }
+diff --git a/src/dvi/dvi_resmanager.c b/src/dvi/dvi_resmanager.c
+index f702dfa..d5d635e 100644
+--- a/src/dvi/dvi_resmanager.c
++++ b/src/dvi/dvi_resmanager.c
+@@ -565,7 +565,9 @@ static fz_font *dvi_resmanager_get_fz_font(fz_context *ctx, dvi_resmanager *rm,
+ 
+     if (stm)
+     {
+-      buf = fz_read_all(ctx, stm, 16384);
++      /* Local font collections can exceed MuPDF's default bomb threshold.
++       * Keep a bounded 256 MiB limit while supporting system TTC files. */
++      buf = fz_read_best(ctx, stm, 16384, NULL, 256u * 1024u * 1024u);
+       cell->font = fz_new_font_from_buffer(ctx, NULL, buf, index, 0);
+     }
+ 
+diff --git a/src/dvi/mydvi.h b/src/dvi/mydvi.h
+index 12ea961..a42c8b1 100644
+--- a/src/dvi/mydvi.h
++++ b/src/dvi/mydvi.h
+@@ -162,6 +162,8 @@ typedef struct
+     struct {
+       fz_font *font;
+       dvi_xdvfontspec spec;
++      int *unicode_by_glyph;
++      int unicode_count;
+     } xdv_font;
+   };
+ } dvi_fontdef;
+diff --git a/src/frontend/main.c b/src/frontend/main.c
+index 8591703..80027ac 100644
+--- a/src/frontend/main.c
++++ b/src/frontend/main.c
+@@ -1255,7 +1255,8 @@ static void interpret_command(struct persistent_state *ps,
+         {
+           ui->page = p->page;
+           p->valid = false;
+-          synctex_set_target(send(synctex, ui->eng, NULL), 0, NULL, 0);
++          /* A preview render/prefetch is not a user navigation. Preserve an
++           * in-flight forward search while the requested page compiles. */
+           schedule_event(RELOAD_EVENT);
+         }
+       }
+@@ -1566,8 +1567,12 @@ bool texpresso_main(struct persistent_state *ps)
+       if (quit) break;
+       if (!has_event)
+       {
+-        if (advance)
++        if (advance) {
++          /* Forward search is evaluated below the event wait. Wake the next
++           * loop while more pages are compiled so it can inspect new records. */
++          if (synctex_has_target(send(synctex, ui->eng, NULL))) schedule_event(STDIN_EVENT);
+           continue;
++        }
+         if (!stdin_eof)
+           wakeup_poll_thread(poll_stdin_pipe, 'c');
+ 
+diff --git a/src/frontend/preview.c b/src/frontend/preview.c
+index d8054fc..2f66b47 100644
+--- a/src/frontend/preview.c
++++ b/src/frontend/preview.c
+@@ -233,6 +233,36 @@ void txp_preview_state(txp_preview *p, int count, int page, bool complete)
+   p->last_complete = complete;
+ }
+ 
++/* Bounded, positioned Unicode characters for the editor text layer. */
++static fz_buffer *preview_text_layer(fz_context *ctx, fz_display_list *list)
++{
++  fz_stext_page *page = NULL;
++  fz_buffer *buf = NULL;
++  fz_var(page); fz_var(buf);
++  fz_try(ctx) {
++    page = fz_new_stext_page_from_display_list(ctx, list, NULL);
++    buf = fz_new_buffer(ctx, 8192);
++    fz_append_string(ctx, buf, "[");
++    int count = 0;
++    for (fz_stext_block *b = page->first_block; b && count < 8000; b = b->next) {
++      if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
++      for (fz_stext_line *l = b->u.t.first_line; l && count < 8000; l = l->next) {
++        for (fz_stext_char *c = l->first_char; c && count < 8000; c = c->next) {
++          fz_rect r = fz_rect_from_quad(c->quad);
++          if (c->c <= 0 || c->c > 0x10ffff || (c->c >= 0xd800 && c->c <= 0xdfff) ||
++              !isfinite(r.x0) || !isfinite(r.y0) || !isfinite(r.x1) || !isfinite(r.y1) || r.x1 <= r.x0 || r.y1 <= r.y0) continue;
++          fz_append_printf(ctx, buf, "%s[%d,%.3f,%.3f,%.3f,%.3f]", count ? "," : "", c->c, r.x0, r.y0, r.x1, r.y1);
++          count++;
++        }
++      }
++    }
++    fz_append_string(ctx, buf, "]");
++  }
++  fz_always(ctx) { fz_drop_stext_page(ctx, page); }
++  fz_catch(ctx) { fz_drop_buffer(ctx, buf); fz_rethrow(ctx); }
++  return buf;
++}
++
+ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list, int page, txp_renderer *renderer)
+ {
+   if (!p->pending) return;
+@@ -251,7 +281,7 @@ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list,
+   struct timespec export_start;
+   clock_gettime(CLOCK_MONOTONIC, &export_start);
+   fz_pixmap *pix = NULL, *crop = NULL;
+-  fz_buffer *png = NULL;
++  fz_buffer *png = NULL, *text_layer = NULL;
+   fz_device *dev = NULL;
+   fz_output *out = NULL;
+   const char *fallback = NULL;
+@@ -261,7 +291,7 @@ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list,
+   fz_irect dirty = {0};
+   int image_width = 0, image_height = 0;
+   fz_var(pix); fz_var(crop); fz_var(patch); fz_var(dirty);
+-  fz_var(png);
++  fz_var(png); fz_var(text_layer);
+   fz_var(dev); fz_var(out); fz_var(fallback); fz_var(svg); fz_var(svg_eligible); fz_var(vector_cost);
+   fz_try(ctx)
+   {
+@@ -366,6 +396,7 @@ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list,
+     clock_gettime(CLOCK_MONOTONIC, &export_end);
+     double export_ms = (export_end.tv_sec - export_start.tv_sec) * 1000.0 +
+       (export_end.tv_nsec - export_start.tv_nsec) / 1000000.0;
++    if (!p->region) text_layer = preview_text_layer(ctx, list);
+     double transfer_start = txp_profile_now();
+     printf("[\"preview-image\",{\"requestId\":%d,\"revision\":%d,\"sequence\":%d,"
+            "\"page\":%d,\"bounds\":[%.9g,%.9g,%.9g,%.9g],\"width\":%d,"
+@@ -383,6 +414,7 @@ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list,
+     if (!p->region && p->annotations && p->annotations->len) {
+       printf(",\"annotations\":%.*s", (int)p->annotations->len, p->annotations->data);
+     }
++    if (text_layer) printf(",\"text\":%.*s", (int)text_layer->len, text_layer->data);
+     printf("}]\n");
+     if (len && fwrite(data, 1, len, stdout) != len)
+       _Exit(1); /* A partial binary frame cannot be recovered. */
+@@ -398,6 +430,7 @@ void txp_preview_export(fz_context *ctx, txp_preview *p, fz_display_list *list,
+   }
+   fz_always(ctx)
+   {
++    fz_drop_buffer(ctx, text_layer);
+     fz_drop_device(ctx, dev);
+     fz_drop_output(ctx, out);
+     fz_drop_buffer(ctx, png);
+diff --git a/src/frontend/synctex.c b/src/frontend/synctex.c
+index 95c806d..f0ae8a9 100644
+--- a/src/frontend/synctex.c
++++ b/src/frontend/synctex.c
+@@ -815,8 +815,7 @@ synctex_backscan_page(fz_context *ctx, synctex_t *stx, fz_buffer *buf, int page,
+       // page and before and at the instruction that trigerred the flush, it is
+       // useful to use the top of next page as an approximation.
+       // (maybe there won't be any other synctex record to attach to).
+-      if (r0.link.tag == tag && r0.link.line < line)
+-        return;
++      /* A shipout marker may precede the target even on its actual page. */
+       continue;
+     }
+ 
+@@ -830,33 +829,20 @@ synctex_backscan_page(fz_context *ctx, synctex_t *stx, fz_buffer *buf, int page,
+       // Remember we processed at least one record
+       had_record = 1;
+ 
+-      // Remember that we have seen at least one record
+-      // Check if candidate
+-      if (r.link.line <= line || (r.link.line > line && stx->candidate_page == -1))
+-      {
++      /* Partial pages can contain synthetic shipout/header records from
++       * a later source line (notably a table of contents). Do not treat the
++       * first greater line as definitive: continue until an exact record, or
++       * the input closes, then choose the closest actual record. */
++      int distance = int_abs(r.link.line - line);
++      int old_distance = stx->candidate_page < 0 ? 0x7fffffff : int_abs(stx->candidate_line - line);
++      if (distance < old_distance || (distance == old_distance && page == stx->target_current_page)) {
+         stx->candidate_page = page;
+         stx->candidate_x = r.point.x;
+         stx->candidate_y = r.point.y;
+         stx->candidate_line = r.link.line;
+         *updated_candidate = 1;
+       }
+-
+-      // Check if definitive match
+-      if (r.link.line >= line)
+-      {
+-        if (stx->candidate_page != page)
+-        {
+-          // The beginning and ending of the match crosses two (or more?) pages.
+-          // Use current page to decide which one to keep.
+-          if (stx->target_current_page == page)
+-          {
+-            stx->candidate_page = page;
+-            stx->candidate_x = r.point.x;
+-            stx->candidate_y = r.point.y;
+-            stx->candidate_line = r.link.line;
+-            *updated_candidate = 1;
+-          }
+-        }
++      if (distance == 0) {
+         synctex_clear_search(stx);
+         return;
+       }
+@@ -905,15 +891,12 @@ int synctex_find_target(fz_context *ctx, synctex_t *stx, fz_buffer *buf, int *pa
+     stx->scanned_pages += 1;
+   }
+ 
+-  if (updated_candidate)
+-  {
+-    if (page) *page = stx->candidate_page;
+-    if (x) *x = stx->candidate_x;
+-    if (y) *y = stx->candidate_y;
+-  }
+-
+-  if (synctex_input_closed(ctx, stx, stx->input_tag))
++  /* Never publish an interim candidate while more pages can refine it. */
++  if (stx->target_path[0] && synctex_input_closed(ctx, stx, stx->input_tag))
+     synctex_clear_search(stx);
+-
+-  return updated_candidate;
++  if (stx->target_path[0] || stx->candidate_page < 0) return 0;
++  if (page) *page = stx->candidate_page;
++  if (x) *x = stx->candidate_x;
++  if (y) *y = stx->candidate_y;
++  return 1;
+ }

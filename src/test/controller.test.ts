@@ -21,6 +21,8 @@ test('controller isolates old process exits, reloads root settings, and retains 
   const launches: string[][] = [];
   const scopedReads: unknown[] = [];
   const errors: string[] = [];
+  let cancelCompiler = false;
+  let compilerChoices: string[] = [];
   const disposable = { dispose() {} };
   const event = (name: string) => (listener: (...args: unknown[]) => unknown) => {
     listeners.set(name, listener);
@@ -54,6 +56,10 @@ test('controller isolates old process exits, reloads root settings, and retains 
     Uri: { file: (file: string) => ({ fsPath: file }) },
     window: {
       activeTextEditor: editor,
+      async showQuickPick(items: { label: string }[]) {
+        compilerChoices = items.map(item => item.label);
+        return cancelCompiler ? undefined : items[0];
+      },
       createOutputChannel(name: string) {
         const channel = {
           text: '',
@@ -95,7 +101,7 @@ test('controller isolates old process exits, reloads root settings, and retains 
   const localRequire = createRequire(extensionPath);
   const exported: { activate?: (context: { subscriptions: unknown[] }) => void; deactivate?: () => void } = {};
   vm.runInNewContext(readFileSync(extensionPath, 'utf8'), {
-    exports: exported, module: { exports: exported }, process,
+    exports: exported, module: { exports: exported }, process, setTimeout, clearTimeout,
     require(name: string) {
       if (name === 'vscode') {
         return api;
@@ -123,6 +129,11 @@ test('controller isolates old process exits, reloads root settings, and retains 
   try {
     await Promise.all([commands.get('texpresso.startDocument')!(), commands.get('texpresso.startDocument')!()]);
     assert.equal(children.length, 1, 'only the latest concurrent start launches an engine');
+    assert.deepEqual(Array.from(compilerChoices), ['XeLaTeX', 'pdfLaTeX']);
+    cancelCompiler = true;
+    await commands.get('texpresso.startDocument')!();
+    assert.equal(children.length, 1, 'cancelling the compiler choice keeps the active session');
+    cancelCompiler = false;
     assert.equal(contexts.get('texpresso.running'), true);
     assert.equal(contexts.get('texpresso.inActiveEditor'), true);
     children[0].stdout.write('["input-file",2,"child.tex"]\n');
@@ -132,6 +143,8 @@ test('controller isolates old process exits, reloads root settings, and retains 
     assert.equal(contexts.get('texpresso.running'), true);
     assert.equal(channels.get('TeXpresso')!.text, 'new session output\n');
     assert.equal(errors.length, 0);
+    assert.ok(children[1].commands.every(command => command[0] !== 'synctex-forward'), 'starting the preview does not scroll');
+    await commands.get('texpresso.syncTeXForward')!();
     assert.deepEqual(children[1].commands.at(-1), ['synctex-forward', main.fileName, 1]);
 
     values.packageProvider = 'tectonic';

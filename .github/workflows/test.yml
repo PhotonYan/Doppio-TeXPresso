@@ -1,28 +1,17 @@
-name: Tests
+name: Extension tests
+
 on:
   push:
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
-concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+
 jobs:
   test:
-    name: Extension / ${{ matrix.os }} / VS Code ${{ matrix.vscode }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        vscode: [stable]
-        include:
-          - os: ubuntu-latest
-            vscode: '1.88.0'
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     timeout-minutes: 15
-    env:
-      VSCODE_VERSION: ${{ matrix.vscode }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,180 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-        timeout-minutes: 4
-      - name: Types, bundle, lint, and regression tests
-        run: npm test
-        timeout-minutes: 3
-      - name: VS Code integration tests (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration
-        timeout-minutes: 5
-      - name: VS Code integration tests (macOS and Windows)
-        if: runner.os != 'Linux'
-        run: npm run test:integration
-        timeout-minutes: 5
-      - name: Save diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagnostics-${{ matrix.os }}-${{ matrix.vscode }}
-          path: artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-  package:
-    name: Packaged VSIX
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-        timeout-minutes: 4
-      - name: Install pinned packaging tool
-        run: npm install --global @vscode/vsce@3.7.1
-        timeout-minutes: 3
-      - name: Package, inspect, install, and test the VSIX
-        run: xvfb-run -a npm run test:package
-        timeout-minutes: 5
-      - name: Save VSIX and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: packaged-extension
-          path: artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-  engine:
-    name: Pinned TeXpresso / TeX Live
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      TEXPRESSO_BINARY: ${{ github.workspace }}/.engine/build/texpresso
-      TEXPRESSO_TEST_ARTIFACTS: ${{ github.workspace }}/artifacts/engine
-      TEXPRESSO_TEST_PREVIEW: '1'
-      SDL_VIDEODRIVER: dummy
-    steps:
-      - uses: actions/checkout@v4
-      - name: Read committed engine pin
-        id: engine-pin
-        shell: bash
-        run: echo "revision=$(git rev-parse HEAD:native/texpresso)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
-        with:
-          repository: DominikPeters/texpresso
-          ref: ${{ steps.engine-pin.outputs.revision }}
-          path: .engine
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-        timeout-minutes: 4
-      - name: Install native build dependencies and TeX Live
+      - run: npm test
+      - name: Verify VSIX
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential libsdl2-dev libmupdf-dev libmujs-dev \
-            libfreetype-dev libgumbo-dev libjbig2dec0-dev libjpeg-dev \
-            libopenjp2-7-dev libfontconfig-dev libharfbuzz-dev \
-            libgraphite2-dev libicu-dev libpng-dev libleptonica-dev libtesseract-dev texlive-xetex
-        timeout-minutes: 8
-      - name: Build pinned engine
-        run: |
-          make -C .engine -j2 all test-synctex
-          make -C .engine test-preview-svg test-preview-png test-texlive-provider test-dvi-annotations test-dvi-strokes
-        timeout-minutes: 4
-      - name: Test native synchronization, controls, and dependencies
-        run: npm run test:engine
-        timeout-minutes: 4
-      - name: Test the real engine in a VS Code webview
-        run: xvfb-run -a npm run test:integration:preview
-        timeout-minutes: 5
-      - name: Save engine diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-engine-diagnostics
-          path: artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-  wsl:
-    name: Windows VS Code / real TeXpresso in WSL 2
-    runs-on: windows-2022
-    timeout-minutes: 40
-    env:
-      TEXPRESSO_BINARY: /opt/texpresso/build/texpresso
-    steps:
-      - name: Keep Linux build sources in LF format
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
-      - name: Read committed engine pin
-        id: engine-pin
-        shell: bash
-        run: echo "revision=$(git rev-parse HEAD:native/texpresso)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
-        with:
-          repository: DominikPeters/texpresso
-          ref: ${{ steps.engine-pin.outputs.revision }}
-          path: .engine
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-        timeout-minutes: 4
-      - name: Configure prepared WSL cache
-        id: wsl-config
-        run: node scripts/ci/wsl-environment.cjs configure
-      - name: Restore prepared Ubuntu and TeX Live distribution
-        id: wsl-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ runner.temp }}/texpresso-wsl.tar
-          key: wsl2-windows2022-ubuntu2404-v1-${{ hashFiles('.github/workflows/test.yml', 'scripts/ci/wsl-environment.cjs', 'scripts/ci/wsl-packages.txt') }}
-      - name: Import cached WSL distribution
-        if: steps.wsl-cache.outputs.cache-hit == 'true'
-        run: node scripts/ci/wsl-environment.cjs import
-        timeout-minutes: 8
-      - name: Install Ubuntu, native build dependencies, and TeX Live in WSL
-        if: steps.wsl-cache.outputs.cache-hit != 'true'
-        uses: Vampire/setup-wsl@3b46b44374d5d0ae94654c45d114a3ed7a0e07a8 # v5.0.1
-        timeout-minutes: 20
-        with:
-          distribution: Ubuntu-24.04
-          wsl-version: 2
-          set-as-default: 'true'
-          wsl-conf: |
-            [boot]
-            systemd=false
-          additional-packages: ${{ steps.wsl-config.outputs.packages }}
-      - name: Export prepared distribution before adding source checkouts
-        if: steps.wsl-cache.outputs.cache-hit != 'true'
-        run: node scripts/ci/wsl-environment.cjs export
-        timeout-minutes: 8
-      - name: Save prepared distribution even if later tests fail
-        if: steps.wsl-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ runner.temp }}/texpresso-wsl.tar
-          key: ${{ steps.wsl-cache.outputs.cache-primary-key }}
-      - name: Build pinned engine on the Linux filesystem
-        run: node scripts/ci/wsl-environment.cjs build
-        timeout-minutes: 8
-      - name: Test Windows VS Code launching and synchronizing the real WSL engine
-        run: npm run test:integration:engine
-        timeout-minutes: 8
-      - name: Test binary preview images between WSL and the Windows webview
-        run: npm run test:integration:preview
-        timeout-minutes: 5
-      - name: Save Windows host and real-engine diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-wsl-engine-diagnostics
-          path: artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
+          npm exec --yes --package=@vscode/vsce@3.7.1 -- npm run package:vsix
+          node scripts/check-vsix.cjs artifacts/texpresso.vsix

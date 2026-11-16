@@ -1,5 +1,8 @@
 # Native engine builds
 
+For the first public release, use [the macOS engine build script](../scripts/build-engines-macos.sh). It applies the [TeXpresso and FlashTeX patches](patches/) to pinned upstream checkouts and builds them locally. The helpers described below are inherited from the TeXpresso fork and document its upstream bundle workflow.
+
+
 `texpresso/` is a submodule of `DominikPeters/texpresso`, on the maintained
 `vscode` branch. The extension's Git commit records the exact engine commit.
 The old `web-wrapper-version` branch is independent historical work; new

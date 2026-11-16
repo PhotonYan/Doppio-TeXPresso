@@ -46,7 +46,7 @@ async function processes(): Promise<Process[]> {
 export async function run(): Promise<void> {
   assert.ok(process.env.TEXPRESSO_BINARY, 'real engine binary supplied');
   assert.equal(vscode.env.remoteName, undefined, 'VS Code runs on the host, including Windows in the WSL job');
-  const extension = vscode.extensions.getExtension('DominikPeters.texpresso-basic');
+  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
   assert.ok(extension);
   await extension.activate();
   const workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;
@@ -94,7 +94,7 @@ export async function run(): Promise<void> {
     assert.ok((await fs.readFile(childPath, 'utf8')).includes('TXP-BEFORE'), 'edit reached the compiler without saving to disk');
   };
   try {
-    await command('startDocument');
+    await command('openPreview');
     await compiled('TXP-BEFORE');
     // Compilation output precedes the first usable rollback checkpoint.
     await until(async () => {
