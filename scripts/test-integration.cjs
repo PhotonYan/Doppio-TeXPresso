@@ -22,6 +22,7 @@ const { spawnSync } = require('node:child_process');
   const builder = path.resolve(__dirname, '../src/test/fixtures/build.cjs');
   const quote = value => process.platform === 'win32' ? '"' + value + '"' : "'" + value.replace(/'/g, "'\\''") + "'";
   fs.writeFileSync(path.join(workspace, '.vscode/settings.json'), JSON.stringify({
+    'texpresso.engine': process.env.TEXPRESSO_FLASHTEX_HOST ? 'auto' : 'xelatex',
     'texpresso.flashtexHost': process.env.TEXPRESSO_FLASHTEX_HOST,
     'texpresso.flashtexMutool': process.env.TEXPRESSO_FLASHTEX_MUTOOL,
     'texpresso.command': realEngine ? (useWSL && !preview ? 'env' : binary) : process.execPath,

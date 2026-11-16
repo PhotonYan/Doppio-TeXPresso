@@ -12,7 +12,7 @@ In the 24-page pdfLaTeX integration test, an unsaved edit on page 18 kept the sa
 
 ## Install on macOS
 
-The first release was tested on Apple Silicon with TeX Live and desktop VS Code. Install the VSIX from the [latest GitHub release](https://github.com/PhotonYan/Real_Time_LaTeX/releases/latest) with **Extensions: Install from VSIX…**. If you already use the TeXpresso VS Code extension, disable it before enabling Real-Time LaTeX, since the extensions share command and setting identifiers.
+The first release was tested on Apple Silicon with TeX Live and desktop VS Code. Build the VSIX from source using the steps below and install it with **Extensions: Install from VSIX…**. If you already use the TeXpresso VS Code extension, disable it before enabling Real-Time LaTeX, since the extensions share command and setting identifiers.
 
 Install the [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/), [Homebrew](https://brew.sh/), [Rust](https://rustup.rs/), and a TeX Live distribution such as [MacTeX](https://www.tug.org/mactex/). Then build the engines once:
 
@@ -31,7 +31,7 @@ The script builds the pinned engine sources with the patches in this repository.
 2. Choose **XeLaTeX** or **pdfLaTeX**. If the open file is an included file and has no `% !TeX root = ...` directive, select the main file when prompted.
 3. To jump from PDF to source, hold `⌘` or `Ctrl` and click rendered text. To jump from source to PDF, place the caret on a source line and run **Real-Time LaTeX: SyncTeX Forward**.
 
-**Real-Time LaTeX: Open Preview (Auto)** reuses a running preview. When starting a new preview, Auto reads the main file's `% !TeX program = pdflatex` directive, and defaults to XeLaTeX without it. You can set `texpresso.engine` at the workspace level if you prefer.
+**Real-Time LaTeX: Open Preview (Auto)** reuses a running preview. When starting a new preview, Auto uses the workspace default or reads the main file's `% !TeX program` directive. If neither specifies an engine, it asks you once and saves your choice in the workspace. Use **Real-Time LaTeX: Select Default Compiler** to change that preference and preview with the selected engine.
 
 Use your usual LaTeX Workshop or `latexmk` build to produce the final PDF and regenerate bibliographies and indexes. FlashTeX previews use an isolated copy of the project and run with shell escape disabled.
 

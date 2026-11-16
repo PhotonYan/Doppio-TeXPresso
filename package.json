@@ -43,6 +43,10 @@
         "title": "Real-Time LaTeX: Open Preview (Auto)"
       },
       {
+        "command": "texpresso.selectDefaultCompiler",
+        "title": "Real-Time LaTeX: Select Default Compiler"
+      },
+      {
         "command": "texpresso.selectMainDocument",
         "title": "Real-Time LaTeX: Select Main Document"
       },
@@ -174,7 +178,7 @@
           ],
           "default": "auto",
           "scope": "resource",
-          "description": "Preview engine. Auto uses FlashTeX for documents with a % !TeX program = pdflatex directive and keeps the TeXpresso engine for other documents."
+          "description": "Preview engine. Auto follows a XeLaTeX or pdfLaTeX program directive, or prompts to set a default compiler on first open."
         },
         "texpresso.flashtexHost": {
           "type": "string",

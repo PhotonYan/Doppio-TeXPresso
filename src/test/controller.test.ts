@@ -22,6 +22,7 @@ test('controller isolates old process exits, reloads root settings, and retains 
   const scopedReads: unknown[] = [];
   const errors: string[] = [];
   let cancelCompiler = false;
+  let compilerPrompts = 0;
   let compilerChoices: string[] = [];
   const disposable = { dispose() {} };
   const event = (name: string) => (listener: (...args: unknown[]) => unknown) => {
@@ -31,17 +32,19 @@ test('controller isolates old process exits, reloads root settings, and retains 
   const editor = { document: main, selection: { active: { line: 0 } } };
   const api = {
     RelativePattern: class {},
+    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
     workspace: {
       textDocuments: [main, childDocument],
       createFileSystemWatcher() {
         return { onDidChange: () => disposable, onDidCreate: () => disposable,
           onDidDelete: () => disposable, dispose() {} };
       },
+      getWorkspaceFolder() { return undefined; },
       getConfiguration(_section: string, scope: unknown) {
         scopedReads.push(scope);
         return { get(key: string, fallback: unknown) {
           return structuredClone(values[key] === undefined ? fallback : values[key]);
-        } };
+        }, async update(key: string, value: unknown) { values[key] = value; } };
       },
       onDidChangeConfiguration: event('configuration'),
       onDidOpenTextDocument: event('open'), onDidCloseTextDocument: event('close'),
@@ -57,6 +60,7 @@ test('controller isolates old process exits, reloads root settings, and retains 
     window: {
       activeTextEditor: editor,
       async showQuickPick(items: { label: string }[]) {
+        compilerPrompts++;
         compilerChoices = items.map(item => item.label);
         return cancelCompiler ? undefined : items[0];
       },
@@ -181,6 +185,17 @@ test('controller isolates old process exits, reloads root settings, and retains 
     assert.equal(contexts.get('texpresso.running'), false);
     assert.equal(channels.get('TeXpresso')!.text, 'failure details\n');
     assert.equal(errors.length, 1);
+    editor.document = main;
+    await commands.get('texpresso.stop')!();
+    delete values.engine;
+    const beforeDefault = compilerPrompts;
+    await commands.get('texpresso.openPreview')!();
+    assert.equal(compilerPrompts, beforeDefault + 1, 'the first automatic preview prompts for a default compiler');
+    assert.equal(values.engine, 'xelatex');
+    await commands.get('texpresso.stop')!();
+    await commands.get('texpresso.openPreview')!();
+    assert.equal(compilerPrompts, beforeDefault + 1, 'the next automatic launch uses the saved preference');
+
   } finally {
     await exported.deactivate!();
   }

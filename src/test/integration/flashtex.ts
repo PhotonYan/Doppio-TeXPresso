@@ -96,11 +96,13 @@ export async function run(): Promise<void> {
   const editor = await vscode.window.showTextDocument(chapter, vscode.ViewColumn.One);
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'txp-models-'));
   try {
-    const start = vscode.commands.executeCommand('texpresso.startDocument');
+    const start = vscode.commands.executeCommand('texpresso.openPreview');
     await new Promise(resolve => setTimeout(resolve, 500));
     await vscode.commands.executeCommand('workbench.action.quickOpenSelectNext');
     await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
     await start;
+    assert.equal(vscode.workspace.getConfiguration('texpresso', chapter.uri).get('engine'), 'pdflatex',
+      'The selected compiler is saved for the workspace');
     const cold = await until(async () => (await compiles()).find(result => result.mode === 'cold' && result.status === 'ok'), 'Initial pdfLaTeX compile');
     assert.equal(cold.pages, 24);
     await until(async () => (await logs()).includes('[preview-ui] ["decoded"') || undefined, 'pdfLaTeX page decoded in the VS Code webview');
@@ -162,6 +164,14 @@ export async function run(): Promise<void> {
     await until(async () => (await compiles()).find(result => result.pid !== cold.pid && result.mode === 'cold' && result.status === 'ok'),
       'Restart reopens the disposed main document and keeps the selected compiler');
     assert.equal(vscode.window.activeTextEditor?.document, chapter);
+    const changeDefault = vscode.commands.executeCommand('texpresso.selectDefaultCompiler');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+    await changeDefault;
+    assert.equal(vscode.workspace.getConfiguration('texpresso', chapter.uri).get('engine'), 'xelatex');
+    await until(async () => /Starting: .*"-headless"/.test(await logs()) || undefined,
+      'Changing the default switches the running preview to XeLaTeX');
+    console.log('PASS preview chooser saves pdfLaTeX and can switch the workspace default to XeLaTeX');
   } finally {
     await stop();
     await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');

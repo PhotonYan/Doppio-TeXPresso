@@ -17,6 +17,7 @@ import { subfileParentDirectory } from './main-document';
 import type { SessionConfiguration } from './configuration';
 import type { FileChange, WatchFile } from './dependencies';
 
+type StartMode = 'auto' | 'session' | 'default';
 type Compiler = 'xelatex' | 'pdflatex';
 
 tmp.setGracefulCleanup();
@@ -31,6 +32,7 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   let activeSession: TexpressoSession | undefined;
   let compilerOverride: Compiler | undefined;
+  let savingDefaultCompiler = false;
   let pendingFollow: { session: TexpressoSession; document: vscode.TextDocument; line: number; sequence: number } | undefined;
   let followTimer: ReturnType<typeof setTimeout> | undefined;
   function finishEditFollow(session: TexpressoSession): void {
@@ -155,8 +157,19 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  async function pickCompiler(title: string, current?: Compiler): Promise<Compiler | undefined> {
+    const choices: { label: string; description: string; compiler: Compiler }[] = [
+      { label: 'XeLaTeX', description: 'TeXpresso · Unicode and system fonts', compiler: 'xelatex' },
+      { label: 'pdfLaTeX', description: 'FlashTeX · incremental PDF compilation', compiler: 'pdflatex' }
+    ];
+    for (const choice of choices) {
+      if (choice.compiler === current) { choice.description += ' · Current default'; }
+    }
+    return (await vscode.window.showQuickPick(choices, { title }))?.compiler;
+  }
+
   async function startDocument(document = vscode.window.activeTextEditor?.document, checkRoot = true,
-    chooseCompiler = false): Promise<void> {
+    mode: StartMode = 'auto'): Promise<void> {
     const request = ++startRequest;
     pendingRename = undefined;
     if (!document) {
@@ -164,17 +177,12 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     let selected = checkRoot ? undefined : compilerOverride;
-    if (chooseCompiler) {
-      const choices: { label: string; description: string; compiler: Compiler }[] = [
-        { label: 'XeLaTeX', description: 'TeXpresso · Unicode and system fonts', compiler: 'xelatex' },
-        { label: 'pdfLaTeX', description: 'FlashTeX · incremental PDF compilation', compiler: 'pdflatex' }
-      ];
-      const choice = await vscode.window.showQuickPick(choices, { title: 'Real-Time LaTeX: Select Compiler' });
-      if (!choice || request !== startRequest) { return; }
-      selected = choice.compiler;
+    if (mode === 'session') {
+      selected = await pickCompiler('Real-Time LaTeX: Select Compiler');
+      if (!selected || request !== startRequest) { return; }
     }
     const current = running();
-    if (checkRoot && current?.sync.contains(document) && preview &&
+    if (checkRoot && mode !== 'default' && current?.sync.contains(document) && preview &&
         (!selected || (current.configuration.engine === 'pdflatex' ? 'pdflatex' : 'xelatex') === selected)) {
       if (selected) { compilerOverride = selected; }
       preview.reveal();
@@ -199,11 +207,29 @@ export function activate(context: vscode.ExtensionContext): void {
         document = await vscode.workspace.openTextDocument(document.uri);
         if (request !== startRequest) { return; }
       }
-      const configuration = readConfiguration(settings(document));
-      if (selected) { configuration.engine = selected; }
-      if (configuration.engine === 'auto') {
-        const program = document.getText().match(/^\s*%\s*!\s*TeX[ \t]+(?:TS-)?program\s*=\s*(\w+)/im)?.[1];
-        if (program?.toLowerCase() === 'pdflatex') configuration.engine = 'pdflatex';
+      const preferenceSettings = settings(document);
+      const configuration = readConfiguration(preferenceSettings);
+      const program = document.getText().match(/^\s*%\s*!\s*TeX[ \t]+(?:TS-)?program\s*=\s*(\w+)/im)?.[1]?.toLowerCase();
+      const declared = program === 'xelatex' || program === 'pdflatex' ? program : undefined;
+      if (mode === 'default' || (!selected && configuration.engine === 'auto' && !declared)) {
+        const choice = await pickCompiler('Real-Time LaTeX: Select Default Compiler',
+          configuration.engine === 'auto' ? undefined : configuration.engine);
+        if (!choice || request !== startRequest) { return; }
+        const target = vscode.workspace.getWorkspaceFolder(document.uri)
+          ? vscode.ConfigurationTarget.WorkspaceFolder
+          : vscode.workspace.workspaceFile ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+        savingDefaultCompiler = true;
+        try { await preferenceSettings.update('engine', choice, target); }
+        finally { savingDefaultCompiler = false; }
+        if (request !== startRequest) { return; }
+        configuration.engine = choice;
+        if (running() === current && current?.sync.contains(document) && current.configuration.engine === choice && preview) {
+          compilerOverride = undefined;
+          preview.reveal();
+          return;
+        }
+      } else {
+        configuration.engine = selected || (configuration.engine === 'auto' ? declared : configuration.engine);
       }
       if (configuration.engine === 'pdflatex') configuration.useWSL = false;
       const subfileParent = subfileParentDirectory(document);
@@ -332,7 +358,8 @@ export function activate(context: vscode.ExtensionContext): void {
   function register(name: string, callback: (...args: never[]) => unknown): void {
     context.subscriptions.push(vscode.commands.registerCommand('texpresso.' + name, callback));
   }
-  register('startDocument', () => startDocument(undefined, true, true));
+  register('startDocument', () => startDocument(undefined, true, 'session'));
+  register('selectDefaultCompiler', () => startDocument(undefined, true, 'default'));
   register('openPreview', () => startDocument());
   register('selectMainDocument', async () => {
     const source = vscode.window.activeTextEditor?.document || activeSession?.document;
@@ -399,7 +426,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const launchKeys = ['command', 'useWSL', 'useChangeRangeMode', 'packageProvider', 'includeDirectories', 'arguments',
         'streamFiles', 'watchDependencies', 'previewLocation', 'engine', 'flashtexHost', 'flashtexMutool'];
-      if (launchKeys.some(key => event.affectsConfiguration('texpresso.' + key, session.document.uri)) &&
+      if (launchKeys.some(key => !(key === 'engine' && savingDefaultCompiler) &&
+          event.affectsConfiguration('texpresso.' + key, session.document.uri)) &&
           JSON.stringify(readConfiguration(settings(session.document))) !== JSON.stringify(session.configuration)) {
         void vscode.window.showInformationMessage('TeXpresso settings changed. Restart the preview to apply them.', 'Restart')
           .then(action => {
