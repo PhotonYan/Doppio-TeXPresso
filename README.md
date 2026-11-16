@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/PhotonYan/Doppio-TeXPresso/main/assets/doppio-header.jpg" alt="Doppio TeXPresso with two cups of espresso" width="900">
+  <img src="https://raw.githubusercontent.com/PhotonYan/Doppio-TeXPresso/main/assets/doppio-header.jpg?v=2" alt="Doppio TeXPresso with Xe and Pdf written in milk foam" width="900">
 </p>
 
 <p align="center">
