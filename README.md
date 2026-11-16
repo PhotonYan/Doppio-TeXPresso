@@ -1,6 +1,19 @@
-# Doppio TeXPresso
+<p align="center">
+  <img src="https://raw.githubusercontent.com/PhotonYan/Doppio-TeXPresso/main/assets/doppio-header.jpg" alt="Doppio TeXPresso with two cups of espresso" width="900">
+</p>
 
-Incremental **XeLaTeX and pdfLaTeX** preview inside VS Code. See changes as you type, select text in the PDF, and jump between the preview and the source.
+<p align="center">
+  Incremental <strong>XeLaTeX and pdfLaTeX</strong> preview inside VS Code.
+</p>
+
+<p align="center">
+  <a href="https://github.com/PhotonYan/Doppio-TeXPresso/releases/latest"><img src="https://img.shields.io/github/v/release/PhotonYan/Doppio-TeXPresso?style=flat-square&amp;label=VSIX&amp;color=9b4b2b" alt="Latest VSIX release"></a>
+  <a href="#install-on-macos"><img src="https://img.shields.io/badge/setup-macOS-386459?style=flat-square&amp;logo=apple&amp;logoColor=white" alt="macOS installation guide"></a>
+  <a href="#live-preview"><img src="https://img.shields.io/badge/preview-XeLaTeX%20%2B%20pdfLaTeX-695546?style=flat-square" alt="XeLaTeX and pdfLaTeX demo"></a>
+  <a href="https://github.com/PhotonYan/Doppio-TeXPresso/blob/main/LICENSE"><img src="https://img.shields.io/badge/extension%20license-MIT-776348?style=flat-square" alt="MIT license for the extension"></a>
+</p>
+
+## Live preview
 
 ![Real-time VS Code recording showing the same unsaved edit update the XeLaTeX and pdfLaTeX previews](https://raw.githubusercontent.com/PhotonYan/Doppio-TeXPresso/main/assets/live-preview.gif)
 
