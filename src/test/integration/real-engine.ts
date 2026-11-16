@@ -19,7 +19,7 @@ async function logs(): Promise<{ compiler: string; engine: string }> {
   const files = await logFiles(process.env.TEXPRESSO_TEST_LOGS!);
   const read = async (pattern: RegExp) => (await Promise.all(files.filter(file => pattern.test(path.basename(file)))
     .map(file => fs.readFile(file, 'utf8').catch(() => '')))).join('\n');
-  return { compiler: await read(/^\d+-TeXpresso\.log$/), engine: await read(/^TeXpresso Engine\.log$/) };
+  return { compiler: await read(/^\d+-Doppio TeXPresso\.log$/), engine: await read(/^Doppio TeXPresso Engine\.log$/) };
 }
 
 async function until(check: () => Promise<boolean>, description: string, timeout = 30000): Promise<void> {
@@ -46,7 +46,7 @@ async function processes(): Promise<Process[]> {
 export async function run(): Promise<void> {
   assert.ok(process.env.TEXPRESSO_BINARY, 'real engine binary supplied');
   assert.equal(vscode.env.remoteName, undefined, 'VS Code runs on the host, including Windows in the WSL job');
-  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
+  const extension = vscode.extensions.getExtension('PhotonYan.doppio-texpresso');
   assert.ok(extension);
   await extension.activate();
   const workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;

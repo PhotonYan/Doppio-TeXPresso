@@ -6,9 +6,9 @@ export class PreviewControls {
   private item = vscode.window.createStatusBarItem('texpresso.preview', vscode.StatusBarAlignment.Left, 20);
 
   constructor() {
-    this.item.name = 'TeXpresso Preview';
+    this.item.name = 'Doppio TeXPresso Preview';
     this.item.command = 'texpresso.showControls';
-    this.item.accessibilityInformation = { label: 'TeXpresso preview controls' };
+    this.item.accessibilityInformation = { label: 'Doppio TeXPresso preview controls' };
   }
 
   update(session?: TexpressoSession): void {
@@ -21,11 +21,11 @@ export class PreviewControls {
     }
     const name = session?.document.isUntitled ? 'Untitled' : session && path.basename(session.paths.rootEditorPath);
     switch (session?.state) {
-      case 'starting': this.item.text = '$(loading~spin) TeXpresso: Starting…'; break;
+      case 'starting': this.item.text = '$(loading~spin) Doppio TeXPresso: Starting…'; break;
       case 'running': this.item.text = (session?.paused ? '$(debug-pause)' : '$(preview)') +
-        ' TeXpresso: ' + name + (session?.paused ? ' (paused)' : ''); break;
-      case 'failed': this.item.text = '$(warning) TeXpresso: Failed'; break;
-      default: this.item.text = '$(play) TeXpresso';
+        ' Doppio TeXPresso: ' + name + (session?.paused ? ' (paused)' : ''); break;
+      case 'failed': this.item.text = '$(warning) Doppio TeXPresso: Failed'; break;
+      default: this.item.text = '$(play) Doppio TeXPresso';
     }
     this.item.tooltip = (session ? 'Main document: ' + session.paths.rootEditorPath + '\n' : '') +
       'Open preview controls and troubleshooting';
@@ -68,7 +68,7 @@ export class PreviewControls {
       { label: '$(gear) Open Settings', command: 'texpresso.openSettings' }
     );
     const chosen = await vscode.window.showQuickPick(items, {
-      title: 'TeXpresso' + (session ? ' — ' + path.basename(session.paths.rootEditorPath) : ''),
+      title: 'Doppio TeXPresso' + (session ? ' — ' + path.basename(session.paths.rootEditorPath) : ''),
       placeHolder: session?.state === 'running' ? (session.paused ? 'Preview paused — edits will appear after resuming' : 'Preview running') :
         session?.state === 'failed' ? 'Preview failed — check the setup or engine log' : 'Preview controls'
     });

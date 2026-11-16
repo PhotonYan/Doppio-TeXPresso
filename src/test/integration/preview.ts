@@ -9,7 +9,7 @@ async function logs(directory = process.env.TEXPRESSO_TEST_LOGS!): Promise<strin
   const entries = await fs.readdir(directory, { withFileTypes: true }).catch(() => []);
   return (await Promise.all(entries.map(async entry => {
     const file = path.join(directory, entry.name);
-    return entry.isDirectory() ? logs(file) : /TeXpresso.*\.log$/.test(entry.name) ? fs.readFile(file, 'utf8') : '';
+    return entry.isDirectory() ? logs(file) : /Doppio TeXPresso.*\.log$/.test(entry.name) ? fs.readFile(file, 'utf8') : '';
   }))).join('\n');
 }
 async function until(check: () => Promise<boolean>, description: string, timeout = 30000): Promise<void> {
@@ -77,7 +77,7 @@ async function checkSvgWebview(extensionUri: vscode.Uri): Promise<void> {
 }
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
+  const extension = vscode.extensions.getExtension('PhotonYan.doppio-texpresso');
   assert.ok(extension); await extension.activate();
   if (process.env.TEXPRESSO_TEST_WEBVIEW_ONLY === '1') {
     await checkPreviewStartup(extension.extensionUri);

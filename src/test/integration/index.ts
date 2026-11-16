@@ -42,7 +42,7 @@ async function capture(name: string): Promise<void> {
 }
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
+  const extension = vscode.extensions.getExtension('PhotonYan.doppio-texpresso');
   assert.ok(extension, 'extension discovered');
   if (process.env.TEXPRESSO_TEST_PACKAGED) {
     assert.match(extension.extensionPath, /extensions/);

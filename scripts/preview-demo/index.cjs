@@ -3,7 +3,7 @@ const path = require('node:path');
 exports.activate = async function(context) {
   try {
     const file = process.env.TEXPRESSO_DEMO_FILE || path.resolve(context.extensionPath, '../../artifacts/preview-demo/sample/embedded-preview.tex');
-    const extension = vscode.extensions.getExtension('PhotonYan.real-time-latex');
+    const extension = vscode.extensions.getExtension('PhotonYan.doppio-texpresso');
     if (!extension) throw new Error('TeXpresso is not installed in the demo profile.');
     await extension.activate();
     const document = await vscode.workspace.openTextDocument(path.resolve(file));

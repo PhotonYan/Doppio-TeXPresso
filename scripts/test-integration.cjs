@@ -55,7 +55,7 @@ const { spawnSync } = require('node:child_process');
       if (fs.existsSync(renamed)) { executable = renamed; }
     }
     const profiles = ['--user-data-dir=' + path.join(root, 'user'), '--extensions-dir=' + path.join(root, 'extensions')];
-    let development = process.env.TEXPRESSO_INSTALLED_TEST ? path.join(os.homedir(), '.vscode/extensions/photonyan.real-time-latex-0.1.0') : path.resolve(__dirname, '..');
+    let development = process.env.TEXPRESSO_INSTALLED_TEST ? path.join(os.homedir(), '.vscode/extensions/photonyan.doppio-texpresso-0.1.0') : path.resolve(__dirname, '..');
     if (packaged) {
       const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(executable, { reuseMachineInstall: true });
       const result = spawnSync(cli, [...cliArgs, '--install-extension', path.resolve('artifacts/texpresso.vsix'), '--force', ...profiles],

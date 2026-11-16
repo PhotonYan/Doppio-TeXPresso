@@ -8,7 +8,7 @@ async function logs(directory = process.env.TEXPRESSO_TEST_LOGS!): Promise<strin
   const files = await fs.readdir(directory, { withFileTypes: true }).catch(() => []);
   return (await Promise.all(files.map(entry => {
     const file = path.join(directory, entry.name);
-    return entry.isDirectory() ? logs(file) : /TeXpresso.*\.log$/.test(entry.name) ? fs.readFile(file, 'utf8') : '';
+    return entry.isDirectory() ? logs(file) : /Doppio TeXPresso.*\.log$/.test(entry.name) ? fs.readFile(file, 'utf8') : '';
   }))).join('\n');
 }
 
@@ -34,7 +34,7 @@ async function pageEval<T>(expression: string): Promise<T | undefined> {
       close(): void;
     };
   };
-  for (const target of targets.filter(t => t.type === 'iframe' && t.url.includes('real-time-latex'))) {
+  for (const target of targets.filter(t => t.type === 'iframe' && t.url.includes('doppio-texpresso'))) {
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     try {
       await new Promise<void>((resolve, reject) => {
@@ -82,7 +82,7 @@ const compiles = async (): Promise<Compile[]> => [...(await logs()).matchAll(/\[
 const stop = () => vscode.commands.executeCommand('texpresso.stop');
 
 export async function run(): Promise<void> {
-  const ext = vscode.extensions.getExtension('PhotonYan.real-time-latex');
+  const ext = vscode.extensions.getExtension('PhotonYan.doppio-texpresso');
   const lw = vscode.extensions.getExtension('James-Yu.latex-workshop');
   assert.ok(ext);
   await ext.activate(); await lw?.activate();

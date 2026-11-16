@@ -80,7 +80,7 @@ export class PreviewController {
   constructor(private api: typeof vscode, extensionUri: vscode.Uri, readonly session: TexpressoSession,
     closed: () => void, private action: (name: 'restart' | 'pause' | 'output') => void) {
     const media = api.Uri.joinPath(extensionUri, 'media');
-    this.panel = api.window.createWebviewPanel('texpresso.preview', 'Real-Time LaTeX — ' + path.basename(session.document.fileName),
+    this.panel = api.window.createWebviewPanel('texpresso.preview', 'Doppio TeXPresso — ' + path.basename(session.document.fileName),
       { viewColumn: api.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, localResourceRoots: [media] });
     const webview = this.panel.webview;
     const script = webview.asWebviewUri(api.Uri.joinPath(media, 'preview.js'));

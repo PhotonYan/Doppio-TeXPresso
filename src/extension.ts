@@ -50,11 +50,11 @@ export function activate(context: vscode.ExtensionContext): void {
   let disposeTheme = () => {};
   let pendingRename: TexpressoSession | undefined;
   let lastError = '';
-  const output = vscode.window.createOutputChannel('TeXpresso');
-  const log = vscode.window.createOutputChannel('TeXpresso Log');
-  const debug = vscode.window.createOutputChannel('TeXpresso Engine', { log: true });
-  const build = vscode.window.createOutputChannel('TeXpresso Build');
-  const setup = vscode.window.createOutputChannel('TeXpresso Setup');
+  const output = vscode.window.createOutputChannel('Doppio TeXPresso');
+  const log = vscode.window.createOutputChannel('Doppio TeXPresso Log');
+  const debug = vscode.window.createOutputChannel('Doppio TeXPresso Engine', { log: true });
+  const build = vscode.window.createOutputChannel('Doppio TeXPresso Build');
+  const setup = vscode.window.createOutputChannel('Doppio TeXPresso Setup');
   const controls = new PreviewControls();
   const compiler = new ExternalCompiler(text => build.append(text));
   context.subscriptions.push(output, log, debug, build, setup, controls, compiler);
@@ -173,12 +173,12 @@ export function activate(context: vscode.ExtensionContext): void {
     const request = ++startRequest;
     pendingRename = undefined;
     if (!document) {
-      void vscode.window.showErrorMessage('TeXpresso: Open a LaTeX document first.');
+      void vscode.window.showErrorMessage('Doppio TeXPresso: Open a LaTeX document first.');
       return;
     }
     let selected = checkRoot ? undefined : compilerOverride;
     if (mode === 'session') {
-      selected = await pickCompiler('Real-Time LaTeX: Select Compiler');
+      selected = await pickCompiler('Doppio TeXPresso: Select Compiler');
       if (!selected || request !== startRequest) { return; }
     }
     const current = running();
@@ -212,7 +212,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const program = document.getText().match(/^\s*%\s*!\s*TeX[ \t]+(?:TS-)?program\s*=\s*(\w+)/im)?.[1]?.toLowerCase();
       const declared = program === 'xelatex' || program === 'pdflatex' ? program : undefined;
       if (mode === 'default' || (!selected && configuration.engine === 'auto' && !declared)) {
-        const choice = await pickCompiler('Real-Time LaTeX: Select Default Compiler',
+        const choice = await pickCompiler('Doppio TeXPresso: Select Default Compiler',
           configuration.engine === 'auto' ? undefined : configuration.engine);
         if (!choice || request !== startRequest) { return; }
         const target = vscode.workspace.getWorkspaceFolder(document.uri)
@@ -429,7 +429,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (launchKeys.some(key => !(key === 'engine' && savingDefaultCompiler) &&
           event.affectsConfiguration('texpresso.' + key, session.document.uri)) &&
           JSON.stringify(readConfiguration(settings(session.document))) !== JSON.stringify(session.configuration)) {
-        void vscode.window.showInformationMessage('TeXpresso settings changed. Restart the preview to apply them.', 'Restart')
+        void vscode.window.showInformationMessage('Doppio TeXPresso settings changed. Restart the preview to apply them.', 'Restart')
           .then(action => {
             if (action === 'Restart' && running() === session) {
               void startDocument(session.document, false);
@@ -507,18 +507,18 @@ export function activate(context: vscode.ExtensionContext): void {
     const session = activeSession;
     const document = session?.document || vscode.window.activeTextEditor?.document;
     if (!document) {
-      void vscode.window.showInformationMessage('Open a LaTeX document to check its TeXpresso settings.');
+      void vscode.window.showInformationMessage('Open a LaTeX document to check its Doppio TeXPresso settings.');
       return;
     }
     setup.clear();
-    setup.appendLine('Checking TeXpresso setup…');
+    setup.appendLine('Checking Doppio TeXPresso setup…');
     setup.show(true);
     try {
       const configuration = readConfiguration(settings(document));
       const paths = new SessionPaths(session?.paths.rootEditorPath || document.fileName, configuration.useWSL);
       const host = process.platform + ' ' + process.arch + (vscode.env.remoteName ? ' (' + vscode.env.remoteName + ')' : '');
       const report = await setupReport(configuration, paths, host);
-      setup.replace(report + (lastError ? '\nLast failure: ' + lastError + '\nSee TeXpresso Engine for engine output.\n' : ''));
+      setup.replace(report + (lastError ? '\nLast failure: ' + lastError + '\nSee Doppio TeXPresso Engine for engine output.\n' : ''));
     } catch (error) {
       setup.appendLine('Setup check failed: ' + String(error));
     }
@@ -529,7 +529,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!session) {
       return;
     }
-    const status = vscode.window.setStatusBarMessage('TeXpresso: External compilation...');
+    const status = vscode.window.setStatusBarMessage('Doppio TeXPresso: External compilation...');
     session.dependencies.suspended = true;
     try {
       for (const document of vscode.workspace.textDocuments) {
@@ -551,7 +551,7 @@ export function activate(context: vscode.ExtensionContext): void {
     } catch (error) {
       build.appendLine(String(error));
       if (running() === session) {
-        void vscode.window.showErrorMessage('TeXpresso: ' + String(error));
+        void vscode.window.showErrorMessage('Doppio TeXPresso: ' + String(error));
       }
     } finally {
       session.dependencies.resumeWatching();
@@ -561,7 +561,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   function adoptTheme(session: TexpressoSession): void {
     disposeTheme();
-    const panel = vscode.window.createWebviewPanel('texpresso.colorTheme', 'TeXpresso Theme',
+    const panel = vscode.window.createWebviewPanel('texpresso.colorTheme', 'Doppio TeXPresso Theme',
       { preserveFocus: true, viewColumn: vscode.ViewColumn.Beside }, { enableScripts: true });
     const receiver = panel.webview.onDidReceiveMessage((colors: unknown) => {
       cleanup();

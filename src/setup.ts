@@ -38,7 +38,7 @@ function inWsl(directory: string, command: string): Promise<string> {
 
 export async function setupReport(configuration: SessionConfiguration, paths: SessionPaths,
   host: string): Promise<string> {
-  const lines = ['TeXpresso Setup', '', 'Extension host: ' + host,
+  const lines = ['Doppio TeXPresso Setup', '', 'Extension host: ' + host,
     'Main document: ' + paths.rootEditorPath,
     'Execution: ' + (configuration.useWSL ? 'Windows → WSL' : 'Directly on the extension host'),
     'Package provider: ' + configuration.packageProvider,

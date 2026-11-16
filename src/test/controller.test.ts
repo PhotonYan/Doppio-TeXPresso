@@ -145,7 +145,7 @@ test('controller isolates old process exits, reloads root settings, and retains 
     children[1].stdout.write('["append-lines","out","new session output"]\n["flush"]\n');
     children[0].emit('close', null, 'SIGTERM');
     assert.equal(contexts.get('texpresso.running'), true);
-    assert.equal(channels.get('TeXpresso')!.text, 'new session output\n');
+    assert.equal(channels.get('Doppio TeXPresso')!.text, 'new session output\n');
     assert.equal(errors.length, 0);
     assert.ok(children[1].commands.every(command => command[0] !== 'synctex-forward'), 'starting the preview does not scroll');
     await commands.get('texpresso.syncTeXForward')!();
@@ -183,7 +183,7 @@ test('controller isolates old process exits, reloads root settings, and retains 
     children[4].stdout.write('["append-lines","out","failure details"]\n["flush"]\n');
     children[4].emit('close', 1, null);
     assert.equal(contexts.get('texpresso.running'), false);
-    assert.equal(channels.get('TeXpresso')!.text, 'failure details\n');
+    assert.equal(channels.get('Doppio TeXPresso')!.text, 'failure details\n');
     assert.equal(errors.length, 1);
     editor.document = main;
     await commands.get('texpresso.stop')!();
