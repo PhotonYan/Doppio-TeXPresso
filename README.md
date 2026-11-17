@@ -20,11 +20,16 @@
 
 *Recorded in VS Code at actual playback speed. Both clips type the same line character by character on page 18 of a 24-page example without saving.*
 
-- **XeLaTeX** uses TeXpresso with local changes for embedded previews, fonts, and source navigation. It supports editing in included files and compiling `subfiles` chapters.
-- **pdfLaTeX** uses FlashTeX's resident engine. After an edit, it can resume from a checkpoint and reuse unchanged pages.
-- **Both** render unsaved edits, open in a side-by-side editor tab, and support source-to-PDF and PDF-to-source navigation. The preview follows edits after compilation.
-
 In the 24-page pdfLaTeX integration test, an unsaved edit on page 18 kept the same compiler process, reused the first 17 pages, and retypeset only 2 pages.
+
+## What Doppio adds to TeXpresso
+
+Doppio builds on TeXpresso's incremental XeLaTeX engine and its VS Code extension. Both engines share one side-by-side preview and the same two-way source navigation.
+
+- **Incremental pdfLaTeX.** Doppio sends unsaved edits to a running FlashTeX process, which can resume from a saved compiler state and reuse unchanged pages.
+- **Selectable XeLaTeX preview text.** Doppio recovers Unicode characters from font glyphs where a mapping is available, so you can select and copy rendered text, including Chinese.
+- **More reliable XeLaTeX jumps.** Forward SyncTeX waits for the target line while pages compile, avoiding a brief jump to the table of contents. After an edit compiles, the preview follows the edited line without showing a position marker.
+- **Standalone XeLaTeX `subfiles` previews.** Open a chapter declared with `\documentclass[../main]{subfiles}` and preview it on its own. Doppio adds the main document's directory to the search path for classes, styles, and figures.
 
 ## Install on macOS
 
