@@ -11,6 +11,7 @@
   <a href="#install-on-macos"><img src="https://img.shields.io/badge/setup-macOS-386459?style=flat-square&amp;logo=apple&amp;logoColor=white" alt="macOS installation guide"></a>
   <a href="#live-preview"><img src="https://img.shields.io/badge/preview-XeLaTeX%20%2B%20pdfLaTeX-695546?style=flat-square" alt="XeLaTeX and pdfLaTeX demo"></a>
   <a href="https://github.com/PhotonYan/Doppio-TeXPresso/blob/main/LICENSE"><img src="https://img.shields.io/badge/extension%20license-MIT-776348?style=flat-square" alt="MIT license for the extension"></a>
+  <a href="https://github.com/DominikPeters/texpresso-vscode"><img src="https://img.shields.io/badge/Fork%20from-texpresso--vscode-4e626b?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Fork from DominikPeters/texpresso-vscode"></a>
 </p>
 
 ## Live preview
